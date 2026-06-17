@@ -1,0 +1,70 @@
+{
+  "rewards": {
+    "REWARD_ID_HIDE_HUD": {
+      "name": "Убрать HUD",
+      "effects": [{ "id": "hud_hide", "durationSec": 45 }],
+      "cooldownSec": 120
+    },
+    "REWARD_ID_CROSSHAIR": {
+      "name": "Огромный прицел",
+      "effects": [{ "id": "crosshair_chaos", "durationSec": 30 }],
+      "cooldownSec": 60
+    },
+    "REWARD_ID_SKILL1": {
+      "name": "Каст скилла 1",
+      "effects": [{ "id": "skill1_cast" }],
+      "cooldownSec": 30
+    },
+    "REWARD_ID_SKILL2": {
+      "name": "Каст скилла 2",
+      "effects": [{ "id": "skill2_cast" }],
+      "cooldownSec": 30
+    },
+    "REWARD_ID_SKILL3": {
+      "name": "Каст скилла 3",
+      "effects": [{ "id": "skill3_cast" }],
+      "cooldownSec": 30
+    },
+    "REWARD_ID_SKILL4": {
+      "name": "Каст скилла 4",
+      "effects": [{ "id": "skill4_cast" }],
+      "cooldownSec": 30
+    },
+    "REWARD_ID_ROSTER_HERO": {
+      "name": "Выбрать героя в ростер",
+      "usesUserInput": true,
+      "effects": [{ "id": "roster_high_priority_set", "durationSec": 120 }],
+      "cooldownSec": 180
+    },
+    "REWARD_ID_MINIMAP_CUSTOMIZE": {
+      "name": "Миникарта: хаос",
+      "effects": [
+        {
+          "id": "minimap_customize",
+          "durationSec": 60,
+          "params": {
+            "iconLocalPlayerWidth": 16,
+            "iconPlayerWidth": 12,
+            "opacity": 0.5
+          }
+        }
+      ],
+      "cooldownSec": 120
+    },
+    "REWARD_ID_MINIMAP_SPIN": {
+      "name": "Миникарта крутится",
+      "effects": [{ "id": "minimap_spin", "durationSec": 30 }],
+      "cooldownSec": 120
+    },
+    "REWARD_ID_PARRY": {
+      "name": "Парирование",
+      "effects": [{ "id": "melee_parry_press" }],
+      "cooldownSec": 15
+    },
+    "REWARD_ID_DISCONNECT": {
+      "name": "Кикнуть стримера из матча",
+      "effects": [{ "id": "disconnect" }],
+      "cooldownSec": 900
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "_discoveryNote": "Verify HUD layout convars in F7: find minimap / cvarlist minimap. Set null fields after discovery. Icon-size convars below are known to work via VConsole.",
+  "scale": null,
+  "posX": null,
+  "posY": null,
+  "opacity": null,
+  "rotation": null,
+  "iconLocalPlayerWidth": "citadel_minimap_local_player_width",
+  "iconPlayerWidth": "citadel_minimap_player_width",
+  "iconMaxShrink": "citadel_minimap_max_icon_shrink",
+  "defaults": {
+    "iconLocalPlayerWidth": 8,
+    "iconPlayerWidth": 6,
+    "iconMaxShrink": 0.5,
+    "scale": 1,
+    "posX": 0,
+    "posY": 0,
+    "opacity": 1,
+    "rotation": 0
+  }
+}

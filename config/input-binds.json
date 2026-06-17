@@ -1,0 +1,7 @@
+{
+  "_discoveryNote": "Verify parry bind in F7: find in_held / key_listboundkeys. Update press/release if different.",
+  "meleeParry": {
+    "press": "+in_helditem",
+    "release": "-in_helditem"
+  }
+}

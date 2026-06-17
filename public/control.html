@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Deadlock Twitch Bridge</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0f1419;
+      --panel: #1a2332;
+      --accent: #6bdc8b;
+      --warn: #f0b429;
+      --danger: #ff6b6b;
+      --text: #e8eef5;
+      --muted: #8fa0b5;
+      --border: #2a3a52;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: linear-gradient(160deg, #0b1018, #121b28);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    .wrap {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 1.6rem;
+    }
+    .subtitle {
+      color: var(--muted);
+      margin-bottom: 24px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      margin: 8px 0;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 8px;
+    }
+    .dot.on { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+    .dot.off { background: var(--danger); }
+    button {
+      background: #243247;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 8px;
+      transition: background 0.15s;
+    }
+    button:hover { background: #2f4058; }
+    button.primary { background: #1f5f3f; border-color: #2f8f5d; }
+    button.danger { background: #5a2323; border-color: #8f3f3f; }
+    .effect-list { display: grid; gap: 8px; }
+    .events {
+      max-height: 280px;
+      overflow-y: auto;
+      font-size: 0.9rem;
+    }
+    .event {
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .event strong { color: var(--text); }
+    .active-item {
+      padding: 8px;
+      background: #121a26;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      font-size: 0.9rem;
+    }
+    .hint {
+      margin-top: 16px;
+      padding: 12px;
+      border-left: 3px solid var(--warn);
+      background: rgba(240, 180, 41, 0.08);
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .input-row {
+      margin-bottom: 12px;
+    }
+    .input-row label {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .input-row input {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #121a26;
+      color: var(--text);
+    }
+    button.destructive {
+      background: #5a2323;
+      border-color: #8f3f3f;
+    }
+    .effect-hint {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Deadlock Twitch Bridge</h1>
+    <p class="subtitle">Панель управления для стримера. Откройте это окно поверх игры или в отдельном мониторе.</p>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Статус</h2>
+        <div class="status-row">
+          <span><span class="dot" id="gameDot"></span>Игра (VConsole)</span>
+          <span id="gameStatus">...</span>
+        </div>
+        <div class="status-row">
+          <span><span class="dot" id="twitchDot"></span>Twitch EventSub</span>
+          <span id="twitchStatus">...</span>
+        </div>
+        <div class="status-row">
+          <span>Режим</span>
+          <span id="modeStatus">...</span>
+        </div>
+        <div class="status-row">
+          <span>Очередь</span>
+          <span id="queueStatus">0</span>
+        </div>
+        <button class="danger" onclick="revertAll()">Сбросить все эффекты</button>
+      </div>
+
+      <div class="card">
+        <h2>Активные эффекты</h2>
+        <div id="activeEffects">Нет активных эффектов</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h2>Тест эффектов (без Twitch)</h2>
+      <div class="input-row">
+        <label for="userInput">Текст награды (userInput)</label>
+        <input id="userInput" type="text" placeholder="Например: инфернус — для roster_high_priority_set" />
+      </div>
+      <div class="effect-list" id="effectButtons"></div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h2>Журнал событий</h2>
+      <div class="events" id="events"></div>
+    </div>
+
+    <div class="hint">
+      Для внутриигрового окна: откройте этот URL в браузере, закрепите поверх всех окон (Always on Top через PowerToys или отдельный браузер).
+      Для OBS используйте <a href="/overlay" style="color:var(--accent)">/overlay</a>.
+    </div>
+  </div>
+
+  <script>
+    async function api(path, options) {
+      const res = await fetch(path, options);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || res.statusText);
+      }
+      return res.json();
+    }
+
+    function setDot(id, on) {
+      const el = document.getElementById(id);
+      el.className = "dot " + (on ? "on" : "off");
+    }
+
+    async function refreshStatus() {
+      const status = await api("/api/status");
+      setDot("gameDot", status.gameConnected);
+      setDot("twitchDot", status.twitchConnected);
+      document.getElementById("gameStatus").textContent = status.gameConnected ? "Подключено" : "Нет соединения";
+      document.getElementById("twitchStatus").textContent = status.twitchConnected ? "Подключено" : (status.testMode ? "Test mode" : "Нет соединения");
+      document.getElementById("modeStatus").textContent = status.testMode ? "Тест" : "Twitch";
+      document.getElementById("queueStatus").textContent = status.queueLength;
+
+      const active = document.getElementById("activeEffects");
+      if (!status.activeEffects.length) {
+        active.textContent = "Нет активных эффектов";
+      } else {
+        active.innerHTML = status.activeEffects.map((e) => {
+          const left = Math.max(0, Math.ceil((e.expiresAt - Date.now()) / 1000));
+          return `<div class="active-item"><strong>${e.effectId}</strong><br>${e.viewer || "—"} · ${left}s осталось<br><button onclick="revertEffect('${e.effectId}')">Отменить</button></div>`;
+        }).join("");
+      }
+
+      const events = document.getElementById("events");
+      events.innerHTML = status.recentEvents.slice(0, 20).map((e) => {
+        const time = new Date(e.timestamp).toLocaleTimeString();
+        return `<div class="event"><strong>[${time}]</strong> ${e.message}</div>`;
+      }).join("") || "<div class='event'>Пока нет событий</div>";
+    }
+
+    async function loadEffects() {
+      const effects = await api("/api/effects");
+      const container = document.getElementById("effectButtons");
+      container.innerHTML = effects.map((e) => {
+        const btnClass = e.destructive ? "destructive" : "primary";
+        const hint = e.requiresUserInput && e.userInputHint
+          ? `<div class="effect-hint">${e.userInputHint}</div>`
+          : e.destructive
+            ? `<div class="effect-hint">Опасно: выход из матча, возможен штраф</div>`
+            : "";
+        return `
+          <button class="${btnClass}" onclick="testEffect('${e.id}', ${e.defaultDurationSec}, ${e.destructive}, ${e.requiresUserInput})">
+            ${e.name} (${e.defaultDurationSec}s)
+          </button>
+          ${hint}
+        `;
+      }).join("");
+    }
+
+    async function testEffect(effectId, durationSec, destructive, requiresUserInput) {
+      const userInput = document.getElementById("userInput").value.trim();
+      if (requiresUserInput && !userInput) {
+        alert("Для этого эффекта нужен текст награды (userInput).");
+        return;
+      }
+      if (destructive) {
+        const ok = confirm("Этот эффект отправит disconnect и может выкинуть из матча с штрафом. Продолжить?");
+        if (!ok) return;
+      }
+      await api("/api/test-effect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ effectId, durationSec, userInput: userInput || undefined }),
+      });
+      await refreshStatus();
+    }
+
+    async function revertAll() {
+      await api("/api/revert-all", { method: "POST" });
+      await refreshStatus();
+    }
+
+    async function revertEffect(effectId) {
+      await api("/api/revert", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ effectId }),
+      });
+      await refreshStatus();
+    }
+
+    loadEffects();
+    refreshStatus();
+    setInterval(refreshStatus, 2000);
+  </script>
+</body>
+</html>

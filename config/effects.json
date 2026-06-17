@@ -1,0 +1,120 @@
+{
+  "effects": [
+    {
+      "id": "hud_hide",
+      "name": "Скрыть HUD",
+      "description": "Полностью убирает интерфейс игры",
+      "retailSafe": true,
+      "defaultDurationSec": 45
+    },
+    {
+      "id": "random_sensitivity",
+      "name": "Рандомная чувствительность",
+      "description": "Ставит рандомную чувствительность от 0 до 10",
+      "retailSafe": true,
+      "defaultDurationSec": 30
+    },
+    {
+      "id": "crosshair_chaos",
+      "name": "Огромный прицел",
+      "description": "Случайный цвет и размер кроссхейра",
+      "retailSafe": true,
+      "defaultDurationSec": 30
+    },
+    {
+      "id": "skill1_cast",
+      "name": "Каст скилла 1",
+      "description": "Кастует ability слот 1 через +in_ability1",
+      "retailSafe": true,
+      "defaultDurationSec": 1,
+      "category": "skill",
+      "oneShot": true
+    },
+    {
+      "id": "skill2_cast",
+      "name": "Каст скилла 2",
+      "description": "Кастует ability слот 2 через +in_ability2",
+      "retailSafe": true,
+      "defaultDurationSec": 1,
+      "category": "skill",
+      "oneShot": true
+    },
+    {
+      "id": "skill3_cast",
+      "name": "Каст скилла 3",
+      "description": "Кастует ability слот 3 через +in_ability3",
+      "retailSafe": true,
+      "defaultDurationSec": 1,
+      "category": "skill",
+      "oneShot": true
+    },
+    {
+      "id": "skill4_cast",
+      "name": "Каст скилла 4",
+      "description": "Кастует ability слот 4 через +in_ability4",
+      "retailSafe": true,
+      "defaultDurationSec": 1,
+      "category": "skill",
+      "oneShot": true
+    },
+    {
+      "id": "roster_high_priority_set",
+      "name": "Настроить ростер (high priority)",
+      "description": "Задаёт citadel_hero_roster_high_priority по имени или ID героя из userInput",
+      "retailSafe": true,
+      "defaultDurationSec": 120,
+      "category": "roster",
+      "requiresUserInput": true,
+      "userInputHint": "Имя или ID героя (например: инфернус или 1)"
+    },
+    {
+      "id": "minimap_customize",
+      "name": "Миникарта: размер, центр, прозрачность",
+      "description": "Настраивает миникарту через convar mapping (config/minimap-convars.json)",
+      "retailSafe": true,
+      "defaultDurationSec": 60,
+      "category": "hud",
+      "defaultParams": {
+        "scale": 1.5,
+        "centerX": 0.5,
+        "centerY": 0.5,
+        "opacity": 0.6,
+        "iconLocalPlayerWidth": 14,
+        "iconPlayerWidth": 10
+      }
+    },
+    {
+      "id": "minimap_spin",
+      "name": "Миникарта крутится",
+      "description": "Вращает миникарту (требует rotation convar в config/minimap-convars.json)",
+      "retailSafe": true,
+      "defaultDurationSec": 30,
+      "category": "hud",
+      "defaultParams": {
+        "speedDegPerSec": 45,
+        "opacity": 0.8,
+        "iconLocalPlayerWidth": 12
+      }
+    },
+    {
+      "id": "melee_parry_press",
+      "name": "Парирование (melee parry)",
+      "description": "Прожимает кнопку парирования ближнего боя",
+      "retailSafe": true,
+      "defaultDurationSec": 1,
+      "category": "skill",
+      "oneShot": true,
+      "defaultParams": { "holdMs": 50 }
+    },
+    {
+      "id": "disconnect",
+      "name": "Дисконект из матча",
+      "description": "Отправляет disconnect в консоль игры. Возможен штраф abandon.",
+      "retailSafe": true,
+      "destructive": true,
+      "defaultDurationSec": 1,
+      "category": "other",
+      "oneShot": true
+    }
+  ]
+}
