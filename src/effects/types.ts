@@ -1,3 +1,5 @@
+import type { GameCommandClient } from "../game/game-command-client.js";
+
 export type EffectCategory = "hud" | "skill" | "roster" | "shop" | "other";
 
 export interface GameEffect {
@@ -5,6 +7,7 @@ export interface GameEffect {
   name: string;
   category?: EffectCategory;
   retailSafe: boolean;
+  cfgBindSafe: boolean;
   defaultDurationSec: number;
   oneShot?: boolean;
   experimental?: boolean;
@@ -12,8 +15,8 @@ export interface GameEffect {
   requiresUserInput?: boolean;
   userInputHint?: string;
   defaultParams?: Record<string, unknown>;
-  apply(vc: import("../game/vconsole.js").VConsoleClient, params?: Record<string, unknown>): Promise<void>;
-  revert(vc: import("../game/vconsole.js").VConsoleClient, params?: Record<string, unknown>): Promise<void>;
+  apply(client: GameCommandClient, params?: Record<string, unknown>): Promise<void>;
+  revert(client: GameCommandClient, params?: Record<string, unknown>): Promise<void>;
 }
 
 export interface ConVarToggle {
@@ -31,6 +34,7 @@ export function createToggleEffect(
   id: string,
   name: string,
   retailSafe: boolean,
+  cfgBindSafe: boolean,
   defaultDurationSec: number,
   toggle: ConVarToggle,
 ): GameEffect {
@@ -38,23 +42,23 @@ export function createToggleEffect(
     id,
     name,
     retailSafe,
+    cfgBindSafe,
     defaultDurationSec,
-    async apply(vc) {
-      await vc.sendCommand(`${toggle.name} ${formatConVarValue(toggle.onValue)}`);
+    async apply(client) {
+      await client.sendCommand(`${toggle.name} ${formatConVarValue(toggle.onValue)}`);
     },
-    async revert(vc) {
-      await vc.sendCommand(`${toggle.name} ${formatConVarValue(toggle.offValue)}`);
+    async revert(client) {
+      await client.sendCommand(`${toggle.name} ${formatConVarValue(toggle.offValue)}`);
     },
   };
 }
 
 export async function sendConVars(
-  vc: import("../game/vconsole.js").VConsoleClient,
+  client: GameCommandClient,
   commands: Array<{ name: string; value: string | number | boolean }>,
 ): Promise<void> {
-  for (const cmd of commands) {
-    await vc.sendCommand(`${cmd.name} ${formatConVarValue(cmd.value)}`);
-  }
+  const lines = commands.map((cmd) => `${cmd.name} ${formatConVarValue(cmd.value)}`);
+  await client.sendCommands(lines);
 }
 
 export function mergeEffectParams(

@@ -3,7 +3,8 @@ import {
   loadEffectsCatalog,
   loadRewardsConfig,
 } from "./config.js";
-import { VConsoleClient } from "./game/vconsole.js";
+import { createGameCommandClient } from "./game/create-game-client.js";
+import { ensureCfgBindSetup } from "./game/ensure-cfg-bind-setup.js";
 import { createEffectRegistry } from "./effects/registry.js";
 import { createHeroResolver } from "./heroes/hero-resolver.js";
 import { EffectManager } from "./queue/effect-manager.js";
@@ -11,6 +12,7 @@ import { TwitchEventSubClient } from "./twitch/eventsub.js";
 import { startHttpServer } from "./server/http-server.js";
 import { printTestModeHelp } from "./test/test-mode.js";
 import type { BridgeStatus } from "./types.js";
+import { join } from "node:path";
 
 async function main(): Promise<void> {
   const config = loadAppConfig();
@@ -19,18 +21,32 @@ async function main(): Promise<void> {
   const heroResolver = createHeroResolver();
   const effects = createEffectRegistry(catalog, heroResolver);
 
-  const vconsole = new VConsoleClient({
-    host: config.vconsoleHost,
-    port: config.vconsolePort,
-    reconnectMs: config.vconsoleReconnectMs,
-  });
+  if (config.gameCommandMode === "cfg-bind") {
+    const setup = ensureCfgBindSetup({
+      cfgDir: config.deadlockCfgDir,
+      filename: config.cfgBindFilename,
+      triggerKey: config.cfgTriggerKey,
+    });
+    if (setup.autoexecUpdated) {
+      const action = setup.bindKeySynced ? "synced bind key in" : "updated";
+      console.log(
+        `[game] autoexec.cfg ${action}: bind ${config.cfgTriggerKey} "exec ${config.cfgBindFilename}"`,
+      );
+      console.warn(
+        "[game] Restart Deadlock with launch option -exec autoexec so the bind loads.",
+      );
+    }
+  }
+
+  const gameClient = createGameCommandClient(config);
 
   let twitchConnected = false;
   let gameConnected = false;
 
   const effectManager = new EffectManager(
-    vconsole,
+    gameClient,
     effects,
+    config.gameCommandMode,
     config.allowCheatEffects,
     config.allowDestructiveEffects,
     config.maxQueueSize,
@@ -39,27 +55,39 @@ async function main(): Promise<void> {
   const getStatus = (): BridgeStatus => ({
     twitchConnected,
     gameConnected,
+    gameProcessRunning: gameClient.gameProcessRunning ?? false,
+    gameCommandMode: config.gameCommandMode,
     testMode: config.testMode,
     activeEffects: effectManager.getActiveEffects(),
     queueLength: effectManager.getQueueLength(),
     recentEvents: effectManager.getRecentEvents(),
   });
 
-  vconsole.on("connected", () => {
+  gameClient.on("connected", () => {
     gameConnected = true;
-    console.log("[game] VConsole connected");
+    if (config.gameCommandMode === "vconsole") {
+      console.log("[game] VConsole connected");
+    } else {
+      console.log(
+        `[game] cfg-bind ready: ${join(config.deadlockCfgDir, config.cfgBindFilename)} (trigger ${config.cfgTriggerKey})`,
+      );
+    }
   });
 
-  vconsole.on("disconnected", () => {
+  gameClient.on("disconnected", () => {
     gameConnected = false;
-    console.log("[game] VConsole disconnected, retrying...");
+    if (config.gameCommandMode === "vconsole") {
+      console.log("[game] VConsole disconnected, retrying...");
+    } else {
+      console.log("[game] cfg-bind unavailable (check DEADLOCK_CFG_DIR)");
+    }
   });
 
-  vconsole.on("error", (error) => {
-    console.warn("[game] VConsole error:", error.message);
+  gameClient.on("error", (error) => {
+    console.warn("[game] error:", error.message);
   });
 
-  vconsole.start();
+  gameClient.start();
 
   startHttpServer(config.httpHost, config.httpPort, {
     effectManager,
@@ -120,7 +148,13 @@ async function main(): Promise<void> {
 
   console.log("");
   console.log("Deadlock Twitch Bridge is running.");
-  console.log("Launch Deadlock with -vconsole in Steam launch options.");
+  if (config.gameCommandMode === "vconsole") {
+    console.log("Launch Deadlock with -vconsole -insecure in Steam launch options.");
+  } else {
+    console.log(
+      `cfg-bind mode: bind ${config.cfgTriggerKey} to exec ${config.cfgBindFilename} (auto-setup on start). Use -exec autoexec.`,
+    );
+  }
   console.log(`Open control panel: http://${config.httpHost}:${config.httpPort}/control`);
 }
 

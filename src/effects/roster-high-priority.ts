@@ -1,4 +1,4 @@
-import type { VConsoleClient } from "../game/vconsole.js";
+import type { GameCommandClient } from "../game/game-command-client.js";
 import type { HeroResolver } from "../heroes/hero-resolver.js";
 import { sendConVars } from "./types.js";
 import type { GameEffect } from "./types.js";
@@ -24,10 +24,11 @@ export function createRosterHighPriorityEffect(heroResolver: HeroResolver): Game
     name: "Настроить ростер (high priority)",
     category: "roster",
     retailSafe: true,
+    cfgBindSafe: true,
     defaultDurationSec: 120,
     requiresUserInput: true,
     userInputHint: "Имя или ID героя (например: инфернус или 1)",
-    async apply(vc: VConsoleClient, params?: Record<string, unknown>): Promise<void> {
+    async apply(client: GameCommandClient, params?: Record<string, unknown>): Promise<void> {
       const input = extractInput(params);
       if (!input) {
         throw new Error("roster_high_priority_set requires userInput or heroIds");
@@ -42,10 +43,10 @@ export function createRosterHighPriorityEffect(heroResolver: HeroResolver): Game
       }
 
       const listValue = heroes.map((h) => h.id).join(",");
-      await sendConVars(vc, [{ name: "citadel_hero_roster_high_priority", value: listValue }]);
+      await sendConVars(client, [{ name: "citadel_hero_roster_high_priority", value: listValue }]);
     },
-    async revert(vc: VConsoleClient): Promise<void> {
-      await sendConVars(vc, [{ name: "citadel_hero_roster_high_priority", value: 0 }]);
+    async revert(client: GameCommandClient): Promise<void> {
+      await sendConVars(client, [{ name: "citadel_hero_roster_high_priority", value: 0 }]);
     },
   };
 }

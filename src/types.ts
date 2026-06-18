@@ -1,9 +1,19 @@
+export type { GameCommandMode } from "./game/game-command-client.js";
+import type { GameCommandMode } from "./game/game-command-client.js";
+
 export interface AppConfig {
   twitchClientId: string;
   twitchClientSecret: string;
   twitchAccessToken: string;
   twitchRefreshToken: string;
   twitchBroadcasterId: string;
+  gameCommandMode: GameCommandMode;
+  deadlockCfgDir: string;
+  cfgBindFilename: string;
+  cfgTriggerKey: string;
+  cfgBindCommandDelayMs: number;
+  deadlockWindowTitle: string;
+  deadlockProcessName: string;
   vconsoleHost: string;
   vconsolePort: number;
   vconsoleReconnectMs: number;
@@ -37,6 +47,7 @@ export interface EffectCatalogEntry {
   name: string;
   description: string;
   retailSafe: boolean;
+  cfgBindSafe?: boolean;
   defaultDurationSec: number;
   category?: "hud" | "skill" | "roster" | "shop" | "other";
   oneShot?: boolean;
@@ -70,6 +81,8 @@ export interface BridgeEvent {
 export interface BridgeStatus {
   twitchConnected: boolean;
   gameConnected: boolean;
+  gameProcessRunning: boolean;
+  gameCommandMode: GameCommandMode;
   testMode: boolean;
   activeEffects: ActiveEffectState[];
   queueLength: number;

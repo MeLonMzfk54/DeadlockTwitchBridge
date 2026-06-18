@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import type { VConsoleClient } from "../game/vconsole.js";
+import type { GameCommandClient } from "../game/game-command-client.js";
 import { projectRoot } from "../config.js";
 import { sendConVars } from "./types.js";
 import type { GameEffect } from "./types.js";
@@ -37,13 +37,14 @@ export const minimapSpinEffect: GameEffect = {
   name: "Миникарта крутится",
   category: "hud",
   retailSafe: true,
+  cfgBindSafe: false,
   defaultDurationSec: 30,
   defaultParams: {
     speedDegPerSec: 45,
     opacity: 0.8,
     iconLocalPlayerWidth: 12,
   },
-  async apply(vc, params) {
+  async apply(client, params) {
     stopSpin();
 
     if (!existsSync(join(projectRoot, "config", "minimap-convars.json"))) {
@@ -79,18 +80,18 @@ export const minimapSpinEffect: GameEffect = {
       });
     }
     if (extraCommands.length) {
-      await sendConVars(vc, extraCommands);
+      await sendConVars(client, extraCommands);
     }
 
     spinTimer = setInterval(() => {
       angle = (angle + speed * (intervalMs / 1000)) % 360;
-      void vc.sendCommand(`${spinRotationConvar} ${angle.toFixed(1)}`);
+      void client.sendCommand(`${spinRotationConvar} ${angle.toFixed(1)}`);
     }, intervalMs);
   },
-  async revert(vc) {
+  async revert(client) {
     stopSpin();
     if (spinRotationConvar) {
-      await vc.sendCommand(`${spinRotationConvar} ${savedRotation}`);
+      await client.sendCommand(`${spinRotationConvar} ${savedRotation}`);
       spinRotationConvar = null;
     }
   },

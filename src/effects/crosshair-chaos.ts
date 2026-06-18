@@ -1,4 +1,4 @@
-import type { VConsoleClient } from "../game/vconsole.js";
+import type { GameCommandClient } from "../game/game-command-client.js";
 import { sendConVars } from "./types.js";
 import type { GameEffect } from "./types.js";
 
@@ -22,9 +22,9 @@ function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-async function queryConVar(vc: VConsoleClient, name: string): Promise<string | null> {
+async function queryConVar(client: GameCommandClient, name: string): Promise<string | null> {
   // Source 2 does not return values over VConsole reliably; use archive defaults as fallback.
-  void vc;
+  void client;
   const defaults: Record<string, string> = {
     citadel_crosshair_color_r: "0",
     citadel_crosshair_color_g: "255",
@@ -45,13 +45,14 @@ export const crosshairChaosEffect: GameEffect = {
   id: "crosshair_chaos",
   name: "Хаотичный прицел",
   retailSafe: true,
+  cfgBindSafe: true,
   defaultDurationSec: 30,
-  async apply(vc) {
+  async apply(client) {
     savedValues.clear();
     for (const varName of CROSSHAIR_VARS) {
-      savedValues.set(varName, (await queryConVar(vc, varName)) ?? "0");
+      savedValues.set(varName, (await queryConVar(client, varName)) ?? "0");
     }
-    await sendConVars(vc, [
+    await sendConVars(client, [
       { name: "citadel_crosshair_color_r", value: randomInt(0, 255) },
       { name: "citadel_crosshair_color_g", value: randomInt(0, 255) },
       { name: "citadel_crosshair_color_b", value: randomInt(0, 255) },
@@ -63,12 +64,12 @@ export const crosshairChaosEffect: GameEffect = {
       { name: "citadel_crosshair_dot_outline_border", value: 10 },
     ]);
   },
-  async revert(vc) {
+  async revert(client) {
     const restore = CROSSHAIR_VARS.map((name) => ({
       name,
       value: savedValues.get(name) ?? "0",
     }));
-    await sendConVars(vc, restore);
+    await sendConVars(client, restore);
     savedValues.clear();
   },
 };

@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
 import net from "node:net";
+import type { ConnectableGameCommandClient } from "./game-command-client.js";
 
 /** Source 2 VConsole2 wire version (byte 0xD4 = 212). Deadlock rejects legacy 210. */
 const VCONSOLE_PROTOCOL_VERSION = 0x00d40000;
@@ -14,18 +15,21 @@ export interface VConsoleClientOptions {
  * Source 2 VConsole2 client (CMND packets).
  * Protocol reference: Penguinwizzard/VConsoleLib
  */
-export class VConsoleClient extends EventEmitter<{
+export class VConsoleClient
+  extends EventEmitter<{
   connected: [];
   disconnected: [];
   error: [Error];
   message: [string];
-}> {
+}>
+  implements ConnectableGameCommandClient
+{
   private socket: net.Socket | null = null;
   private reconnectTimer: NodeJS.Timeout | null = null;
   private connecting = false;
   private shouldRun = false;
   private commandQueue: string[] = [];
-  private sending = false;
+  private flushChain: Promise<void> = Promise.resolve();
 
   constructor(private readonly options: VConsoleClientOptions) {
     super();
@@ -52,8 +56,18 @@ export class VConsoleClient extends EventEmitter<{
 
   async sendCommand(command: string): Promise<void> {
     if (!command.trim()) return;
-    this.commandQueue.push(command);
-    await this.flushQueue();
+    await this.sendCommands([command]);
+  }
+
+  async sendCommands(commands: string[]): Promise<void> {
+    const filtered = commands.map((c) => c.trim()).filter(Boolean);
+    if (filtered.length === 0) return;
+
+    for (const command of filtered) {
+      this.commandQueue.push(command);
+    }
+    this.flushChain = this.flushChain.then(() => this.drainQueue());
+    await this.flushChain;
   }
 
   private connect(): void {
@@ -67,7 +81,7 @@ export class VConsoleClient extends EventEmitter<{
       this.connecting = false;
       this.socket = socket;
       this.emit("connected");
-      void this.flushQueue();
+      this.flushChain = this.flushChain.then(() => this.drainQueue());
     });
 
     socket.on("data", (chunk) => {
@@ -96,10 +110,7 @@ export class VConsoleClient extends EventEmitter<{
     }, this.options.reconnectMs);
   }
 
-  private async flushQueue(): Promise<void> {
-    if (this.sending) return;
-    this.sending = true;
-
+  private async drainQueue(): Promise<void> {
     while (this.commandQueue.length > 0) {
       if (!this.connected) {
         this.connect();
@@ -119,8 +130,6 @@ export class VConsoleClient extends EventEmitter<{
       });
       await sleep(50);
     }
-
-    this.sending = false;
   }
 }
 
