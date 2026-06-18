@@ -32,6 +32,9 @@ async function main(): Promise<void> {
       console.log(
         `[game] autoexec.cfg ${action}: bind ${config.cfgTriggerKey} "exec ${config.cfgBindFilename}"`,
       );
+      console.warn(
+        "[game] Restart Deadlock with launch option -exec autoexec so the bind loads.",
+      );
     }
   }
 
@@ -52,6 +55,7 @@ async function main(): Promise<void> {
   const getStatus = (): BridgeStatus => ({
     twitchConnected,
     gameConnected,
+    gameProcessRunning: gameClient.gameProcessRunning ?? false,
     gameCommandMode: config.gameCommandMode,
     testMode: config.testMode,
     activeEffects: effectManager.getActiveEffects(),

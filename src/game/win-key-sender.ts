@@ -1,11 +1,16 @@
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { promisify } from "node:util";
+import { projectRoot } from "../config.js";
 
 const execFileAsync = promisify(execFile);
 
 const F_KEY_VK: Record<number, number> = Object.fromEntries(
   Array.from({ length: 24 }, (_, index) => [index + 1, 0x70 + index]),
 );
+
+const PRESS_KEY_SCRIPT = join(projectRoot, "scripts", "press-game-key.ps1");
 
 export interface PressVirtualKeyOptions {
   processName?: string;
@@ -16,6 +21,16 @@ export interface PressVirtualKeyResult {
   windowFound: boolean;
   focused: boolean;
   keySent: boolean;
+  sendInputCount: number;
+}
+
+interface PowerShellKeyResult {
+  windowFound?: boolean;
+  focused?: boolean;
+  keySent?: boolean;
+  sendInputCount?: number;
+  status?: string;
+  processRunning?: boolean;
 }
 
 export function parseVirtualKeyCode(keyName: string): number {
@@ -36,285 +51,89 @@ export function assertWindowsPlatform(): void {
   }
 }
 
+function assertPressKeyScript(): void {
+  if (!existsSync(PRESS_KEY_SCRIPT)) {
+    throw new Error(`Missing key press script: ${PRESS_KEY_SCRIPT}`);
+  }
+}
+
+async function runPressKeyScript(args: string[]): Promise<PowerShellKeyResult> {
+  assertWindowsPlatform();
+  assertPressKeyScript();
+
+  const { stdout, stderr } = await execFileAsync(
+    "powershell.exe",
+    ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", PRESS_KEY_SCRIPT, ...args],
+    { windowsHide: true },
+  );
+
+  if (stderr?.trim()) {
+    console.warn(`[game] key-sender stderr: ${stderr.trim()}`);
+  }
+
+  try {
+    return JSON.parse(stdout.trim()) as PowerShellKeyResult;
+  } catch {
+    const status = stdout.trim().toLowerCase();
+    if (status === "notfound") {
+      return { windowFound: false, focused: false, keySent: false, sendInputCount: 0 };
+    }
+    return {
+      windowFound: true,
+      focused: status === "ok",
+      keySent: status === "ok" || status === "sent",
+      sendInputCount: status === "ok" || status === "sent" ? 2 : 0,
+    };
+  }
+}
+
+export async function isGameProcessRunning(
+  processName = "deadlock",
+  windowTitleContains = "",
+): Promise<{ processRunning: boolean; windowFound: boolean }> {
+  if (process.platform !== "win32") {
+    return { processRunning: false, windowFound: false };
+  }
+
+  try {
+    const result = await runPressKeyScript([
+      "-VkCode",
+      "0",
+      "-ProcessName",
+      processName,
+      "-TitleContains",
+      windowTitleContains,
+      "-CheckOnly",
+    ]);
+    return {
+      processRunning: result.processRunning ?? false,
+      windowFound: result.windowFound ?? false,
+    };
+  } catch {
+    return { processRunning: false, windowFound: false };
+  }
+}
+
 export async function pressVirtualKey(
   vkCode: number,
   options: PressVirtualKeyOptions = {},
 ): Promise<PressVirtualKeyResult> {
-  assertWindowsPlatform();
-
   const processName = options.processName ?? "deadlock";
   const titleFilter = options.windowTitleContains?.trim() ?? "";
-  const escapedProcess = processName.replace(/'/g, "''");
-  const escapedTitle = titleFilter.replace(/'/g, "''");
 
-  const script = `
-Add-Type @"
-using System;
-using System.Diagnostics;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading;
-public class GameKeySender {
-  private const uint INPUT_KEYBOARD = 1;
-  private const uint KEYEVENTF_KEYUP = 0x0002;
-  private const uint KEYEVENTF_SCANCODE = 0x0008;
-  private const uint WM_KEYDOWN = 0x0100;
-  private const uint WM_KEYUP = 0x0101;
-  private const int SW_RESTORE = 9;
-  private const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
-  private const uint MOUSEEVENTF_LEFTUP = 0x0004;
-
-  public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
-
-  [StructLayout(LayoutKind.Sequential)]
-  struct POINT {
-    public int x;
-    public int y;
-  }
-
-  [StructLayout(LayoutKind.Sequential)]
-  struct RECT {
-    public int Left;
-    public int Top;
-    public int Right;
-    public int Bottom;
-  }
-
-  [StructLayout(LayoutKind.Sequential)]
-  struct INPUT {
-    public uint type;
-    public InputUnion U;
-  }
-
-  [StructLayout(LayoutKind.Explicit)]
-  struct InputUnion {
-    [FieldOffset(0)] public KEYBDINPUT ki;
-  }
-
-  [StructLayout(LayoutKind.Sequential)]
-  struct KEYBDINPUT {
-    public ushort wVk;
-    public ushort wScan;
-    public uint dwFlags;
-    public uint time;
-    public IntPtr dwExtraInfo;
-  }
-
-  [DllImport("user32.dll")]
-  static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
-
-  [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-  static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
-
-  [DllImport("user32.dll")]
-  static extern bool IsWindowVisible(IntPtr hWnd);
-
-  [DllImport("user32.dll")]
-  static extern bool IsIconic(IntPtr hWnd);
-
-  [DllImport("user32.dll")]
-  static extern bool SetForegroundWindow(IntPtr hWnd);
-
-  [DllImport("user32.dll")]
-  static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-
-  [DllImport("user32.dll")]
-  static extern bool BringWindowToTop(IntPtr hWnd);
-
-  [DllImport("user32.dll")]
-  static extern IntPtr GetForegroundWindow();
-
-  [DllImport("user32.dll")]
-  static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
-
-  [DllImport("user32.dll")]
-  static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
-
-  [DllImport("user32.dll")]
-  static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
-
-  [DllImport("user32.dll")]
-  static extern bool GetCursorPos(out POINT lpPoint);
-
-  [DllImport("user32.dll")]
-  static extern bool SetCursorPos(int X, int Y);
-
-  [DllImport("user32.dll")]
-  static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, UIntPtr dwExtraInfo);
-
-  [DllImport("user32.dll")]
-  static extern void SwitchToThisWindow(IntPtr hWnd, bool fAltTab);
-
-  [DllImport("user32.dll")]
-  static extern ushort MapVirtualKey(ushort uCode, uint uMapType);
-
-  [DllImport("user32.dll")]
-  static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
-
-  static string GetProcessName(uint pid) {
-    try {
-      return Process.GetProcessById((int)pid).ProcessName;
-    } catch {
-      return "";
-    }
-  }
-
-  public static IntPtr FindGameWindow(string processName, string titleContains) {
-    Process[] processes = Process.GetProcessesByName(processName);
-    foreach (Process proc in processes) {
-      if (proc.MainWindowHandle == IntPtr.Zero) continue;
-
-      if (!string.IsNullOrEmpty(titleContains)) {
-        var sb = new StringBuilder(512);
-        GetWindowText(proc.MainWindowHandle, sb, 512);
-        string title = sb.ToString();
-        if (title.Length > 0 &&
-            title.IndexOf(titleContains, StringComparison.OrdinalIgnoreCase) < 0) {
-          continue;
-        }
-      }
-
-      return proc.MainWindowHandle;
-    }
-
-    IntPtr best = IntPtr.Zero;
-    long bestArea = 0;
-
-    EnumWindows((hWnd, lParam) => {
-      if (!IsWindowVisible(hWnd)) return true;
-
-      GetWindowThreadProcessId(hWnd, out uint pid);
-      if (!GetProcessName(pid).Equals(processName, StringComparison.OrdinalIgnoreCase)) {
-        return true;
-      }
-
-      var sb = new StringBuilder(512);
-      GetWindowText(hWnd, sb, 512);
-      string title = sb.ToString();
-
-      if (!string.IsNullOrEmpty(titleContains) &&
-          title.IndexOf(titleContains, StringComparison.OrdinalIgnoreCase) < 0) {
-        return true;
-      }
-
-      RECT rect;
-      if (!GetWindowRect(hWnd, out rect)) return true;
-      long area = (long)(rect.Right - rect.Left) * (rect.Bottom - rect.Top);
-      if (area <= 0) return true;
-
-      if (area > bestArea) {
-        bestArea = area;
-        best = hWnd;
-      }
-      return true;
-    }, IntPtr.Zero);
-
-    return best;
-  }
-
-  static void RaiseGameWindow(IntPtr hWnd) {
-    if (IsIconic(hWnd)) {
-      ShowWindow(hWnd, SW_RESTORE);
-    }
-    try {
-      SwitchToThisWindow(hWnd, true);
-    } catch { }
-    SetForegroundWindow(hWnd);
-    BringWindowToTop(hWnd);
-    Thread.Sleep(60);
-  }
-
-  static void ClickWindowCenter(IntPtr hWnd) {
-    POINT saved;
-    GetCursorPos(out saved);
-
-    RECT rect;
-    if (!GetWindowRect(hWnd, out rect)) return;
-
-    int x = (rect.Left + rect.Right) / 2;
-    int y = (rect.Top + rect.Bottom) / 2;
-
-    SetCursorPos(x, y);
-    Thread.Sleep(30);
-    mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, UIntPtr.Zero);
-    Thread.Sleep(20);
-    mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, UIntPtr.Zero);
-    Thread.Sleep(40);
-    SetCursorPos(saved.x, saved.y);
-  }
-
-  static void SendHardwareKey(byte vk) {
-    ushort scan = MapVirtualKey(vk, 0);
-
-    var down = new INPUT {
-      type = INPUT_KEYBOARD,
-      U = new InputUnion {
-        ki = new KEYBDINPUT { wScan = scan, dwFlags = KEYEVENTF_SCANCODE }
-      }
-    };
-    var up = new INPUT {
-      type = INPUT_KEYBOARD,
-      U = new InputUnion {
-        ki = new KEYBDINPUT { wScan = scan, dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP }
-      }
-    };
-
-    SendInput(1, new[] { down }, Marshal.SizeOf(typeof(INPUT)));
-    Thread.Sleep(15);
-    SendInput(1, new[] { up }, Marshal.SizeOf(typeof(INPUT)));
-  }
-
-  static void PostKeyToWindow(IntPtr hWnd, byte vk) {
-    ushort scan = MapVirtualKey(vk, 0);
-    IntPtr lDown = (IntPtr)(1u | ((uint)scan << 16));
-    IntPtr lUp = (IntPtr)(1u | ((uint)scan << 16) | (1u << 30) | (1u << 31));
-    PostMessage(hWnd, WM_KEYDOWN, (IntPtr)vk, lDown);
-    Thread.Sleep(15);
-    PostMessage(hWnd, WM_KEYUP, (IntPtr)vk, lUp);
-  }
-
-  static bool IsProcessForeground(uint pid) {
-    IntPtr fg = GetForegroundWindow();
-    if (fg == IntPtr.Zero) return false;
-    GetWindowThreadProcessId(fg, out uint fgPid);
-    return fgPid == pid;
-  }
-
-  public static string Press(byte vk, string processName, string titleContains) {
-    IntPtr hwnd = FindGameWindow(processName, titleContains);
-    if (hwnd == IntPtr.Zero) return "notfound";
-
-    GetWindowThreadProcessId(hwnd, out uint gamePid);
-
-    RaiseGameWindow(hwnd);
-    ClickWindowCenter(hwnd);
-    Thread.Sleep(50);
-
-    SendHardwareKey(vk);
-    PostKeyToWindow(hwnd, vk);
-
-    return IsProcessForeground(gamePid) ? "ok" : "sent";
-  }
-}
-"@
-$result = [GameKeySender]::Press([byte]${vkCode}, '${escapedProcess}', '${escapedTitle}')
-Write-Output $result
-`;
-
-  const { stdout } = await execFileAsync(
-    "powershell.exe",
-    ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script],
-    { windowsHide: true },
-  );
-
-  const status = stdout.trim().toLowerCase();
-  if (status === "notfound") {
-    return { windowFound: false, focused: false, keySent: false };
-  }
+  const result = await runPressKeyScript([
+    "-VkCode",
+    String(vkCode),
+    "-ProcessName",
+    processName,
+    "-TitleContains",
+    titleFilter,
+  ]);
 
   return {
-    windowFound: true,
-    focused: status === "ok",
-    keySent: true,
+    windowFound: result.windowFound ?? false,
+    focused: result.focused ?? false,
+    keySent: result.keySent ?? false,
+    sendInputCount: result.sendInputCount ?? 0,
   };
 }

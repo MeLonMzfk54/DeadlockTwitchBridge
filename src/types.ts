@@ -81,6 +81,7 @@ export interface BridgeEvent {
 export interface BridgeStatus {
   twitchConnected: boolean;
   gameConnected: boolean;
+  gameProcessRunning: boolean;
   gameCommandMode: GameCommandMode;
   testMode: boolean;
   activeEffects: ActiveEffectState[];

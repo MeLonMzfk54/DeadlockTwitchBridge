@@ -44,9 +44,13 @@ export const meleeParryPressEffect: GameEffect = {
   async apply(client: GameCommandClient, params?: Record<string, unknown>): Promise<void> {
     const bind = loadMeleeParryBind();
     const holdMs = paramHoldMs(params);
-    await client.sendCommand(bind.press);
-    await sleep(holdMs);
-    await client.sendCommand(bind.release);
+    if (holdMs > 0) {
+      await client.sendCommand(bind.press);
+      await sleep(holdMs);
+      await client.sendCommand(bind.release);
+      return;
+    }
+    await client.sendCommand(`${bind.press}; ${bind.release}`);
   },
   async revert(): Promise<void> {
     // oneShot effect: nothing to revert

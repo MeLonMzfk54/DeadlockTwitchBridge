@@ -57,9 +57,8 @@ export async function sendConVars(
   client: GameCommandClient,
   commands: Array<{ name: string; value: string | number | boolean }>,
 ): Promise<void> {
-  for (const cmd of commands) {
-    await client.sendCommand(`${cmd.name} ${formatConVarValue(cmd.value)}`);
-  }
+  const lines = commands.map((cmd) => `${cmd.name} ${formatConVarValue(cmd.value)}`);
+  await client.sendCommands(lines);
 }
 
 export function mergeEffectParams(

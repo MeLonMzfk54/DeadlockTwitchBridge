@@ -1,10 +1,6 @@
 import type { GameCommandClient } from "../game/game-command-client.js";
 import type { GameEffect } from "./types.js";
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 function createInAbilityCastEffect(slot: 1 | 2 | 3 | 4): GameEffect {
   return {
     id: `skill${slot}_cast`,
@@ -15,9 +11,7 @@ function createInAbilityCastEffect(slot: 1 | 2 | 3 | 4): GameEffect {
     defaultDurationSec: 1,
     oneShot: true,
     async apply(client: GameCommandClient): Promise<void> {
-      await client.sendCommand(`+in_ability${slot}`);
-      await sleep(50);
-      await client.sendCommand(`-in_ability${slot}`);
+      await client.sendCommand(`+in_ability${slot}; -in_ability${slot}`);
     },
     async revert(): Promise<void> {
       // oneShot effect: nothing to revert

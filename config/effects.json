@@ -122,7 +122,7 @@
       "name": "Дисконект из матча",
       "description": "Отправляет disconnect в консоль игры. Возможен штраф abandon.",
       "retailSafe": true,
-      "cfgBindSafe": false,
+      "cfgBindSafe": true,
       "destructive": true,
       "defaultDurationSec": 1,
       "category": "other",

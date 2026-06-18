@@ -29,7 +29,7 @@ export class VConsoleClient
   private connecting = false;
   private shouldRun = false;
   private commandQueue: string[] = [];
-  private sending = false;
+  private flushChain: Promise<void> = Promise.resolve();
 
   constructor(private readonly options: VConsoleClientOptions) {
     super();
@@ -56,8 +56,18 @@ export class VConsoleClient
 
   async sendCommand(command: string): Promise<void> {
     if (!command.trim()) return;
-    this.commandQueue.push(command);
-    await this.flushQueue();
+    await this.sendCommands([command]);
+  }
+
+  async sendCommands(commands: string[]): Promise<void> {
+    const filtered = commands.map((c) => c.trim()).filter(Boolean);
+    if (filtered.length === 0) return;
+
+    for (const command of filtered) {
+      this.commandQueue.push(command);
+    }
+    this.flushChain = this.flushChain.then(() => this.drainQueue());
+    await this.flushChain;
   }
 
   private connect(): void {
@@ -71,7 +81,7 @@ export class VConsoleClient
       this.connecting = false;
       this.socket = socket;
       this.emit("connected");
-      void this.flushQueue();
+      this.flushChain = this.flushChain.then(() => this.drainQueue());
     });
 
     socket.on("data", (chunk) => {
@@ -100,10 +110,7 @@ export class VConsoleClient
     }, this.options.reconnectMs);
   }
 
-  private async flushQueue(): Promise<void> {
-    if (this.sending) return;
-    this.sending = true;
-
+  private async drainQueue(): Promise<void> {
     while (this.commandQueue.length > 0) {
       if (!this.connected) {
         this.connect();
@@ -123,8 +130,6 @@ export class VConsoleClient
       });
       await sleep(50);
     }
-
-    this.sending = false;
   }
 }
 
