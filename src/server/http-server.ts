@@ -52,6 +52,7 @@ async function handleRequest(
           id: e.id,
           name: e.name,
           retailSafe: e.retailSafe,
+          cfgBindSafe: e.cfgBindSafe,
           defaultDurationSec: e.defaultDurationSec,
           requiresUserInput: e.requiresUserInput ?? false,
           userInputHint: e.userInputHint ?? "",

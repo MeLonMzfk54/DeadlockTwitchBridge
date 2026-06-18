@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
 import net from "node:net";
+import type { ConnectableGameCommandClient } from "./game-command-client.js";
 
 /** Source 2 VConsole2 wire version (byte 0xD4 = 212). Deadlock rejects legacy 210. */
 const VCONSOLE_PROTOCOL_VERSION = 0x00d40000;
@@ -14,12 +15,15 @@ export interface VConsoleClientOptions {
  * Source 2 VConsole2 client (CMND packets).
  * Protocol reference: Penguinwizzard/VConsoleLib
  */
-export class VConsoleClient extends EventEmitter<{
+export class VConsoleClient
+  extends EventEmitter<{
   connected: [];
   disconnected: [];
   error: [Error];
   message: [string];
-}> {
+}>
+  implements ConnectableGameCommandClient
+{
   private socket: net.Socket | null = null;
   private reconnectTimer: NodeJS.Timeout | null = null;
   private connecting = false;

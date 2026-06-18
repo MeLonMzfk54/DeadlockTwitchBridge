@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import type { VConsoleClient } from "../game/vconsole.js";
+import type { GameCommandClient } from "../game/game-command-client.js";
 import { projectRoot } from "../config.js";
 import type { GameEffect } from "./types.js";
 
@@ -37,15 +37,16 @@ export const meleeParryPressEffect: GameEffect = {
   name: "Парирование (melee parry)",
   category: "skill",
   retailSafe: true,
+  cfgBindSafe: false,
   defaultDurationSec: 1,
   oneShot: true,
   defaultParams: { holdMs: 50 },
-  async apply(vc: VConsoleClient, params?: Record<string, unknown>): Promise<void> {
+  async apply(client: GameCommandClient, params?: Record<string, unknown>): Promise<void> {
     const bind = loadMeleeParryBind();
     const holdMs = paramHoldMs(params);
-    await vc.sendCommand(bind.press);
+    await client.sendCommand(bind.press);
     await sleep(holdMs);
-    await vc.sendCommand(bind.release);
+    await client.sendCommand(bind.release);
   },
   async revert(): Promise<void> {
     // oneShot effect: nothing to revert

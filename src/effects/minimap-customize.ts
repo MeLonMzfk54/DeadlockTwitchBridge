@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import type { VConsoleClient } from "../game/vconsole.js";
+import type { GameCommandClient } from "../game/game-command-client.js";
 import { projectRoot } from "../config.js";
 import { sendConVars } from "./types.js";
 import type { GameEffect } from "./types.js";
@@ -70,6 +70,7 @@ export const minimapCustomizeEffect: GameEffect = {
   name: "Миникарта: размер, центр, прозрачность",
   category: "hud",
   retailSafe: true,
+  cfgBindSafe: true,
   defaultDurationSec: 60,
   defaultParams: {
     scale: 1.5,
@@ -79,7 +80,7 @@ export const minimapCustomizeEffect: GameEffect = {
     iconLocalPlayerWidth: 14,
     iconPlayerWidth: 10,
   },
-  async apply(vc, params) {
+  async apply(client, params) {
     if (!existsSync(join(projectRoot, "config", "minimap-convars.json"))) {
       throw new Error("Missing config/minimap-convars.json");
     }
@@ -96,14 +97,14 @@ export const minimapCustomizeEffect: GameEffect = {
     }
 
     await sendConVars(
-      vc,
+      client,
       commands.map(({ name, value }) => ({ name, value })),
     );
   },
-  async revert(vc) {
+  async revert(client) {
     const restore = [...savedValues.entries()].map(([name, value]) => ({ name, value }));
     if (restore.length) {
-      await sendConVars(vc, restore);
+      await sendConVars(client, restore);
     }
     savedValues.clear();
   },

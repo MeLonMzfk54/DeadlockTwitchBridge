@@ -47,6 +47,7 @@ export function createEffectRegistry(
       existing.name = entry.name;
       existing.defaultDurationSec = entry.defaultDurationSec;
       existing.retailSafe = entry.retailSafe;
+      if (typeof entry.cfgBindSafe === "boolean") existing.cfgBindSafe = entry.cfgBindSafe;
       if (entry.category) existing.category = entry.category;
       if (typeof entry.oneShot === "boolean") existing.oneShot = entry.oneShot;
       if (typeof entry.experimental === "boolean") existing.experimental = entry.experimental;

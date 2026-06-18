@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import type { VConsoleClient } from "../game/vconsole.js";
+import type { GameCommandClient, GameCommandMode } from "../game/game-command-client.js";
 import type { GameEffect } from "../effects/types.js";
 import { mergeEffectParams } from "../effects/types.js";
 import type {
@@ -18,6 +18,9 @@ interface QueuedActivation {
   source: EffectActivationSource;
 }
 
+const CFG_BIND_BLOCKED_MESSAGE =
+  "is not available in cfg-bind (official-safe) mode. Skill/parry/input effects require GAME_COMMAND_MODE=vconsole.";
+
 export class EffectManager extends EventEmitter<{
   event: [BridgeEvent];
   status: [];
@@ -29,8 +32,9 @@ export class EffectManager extends EventEmitter<{
   private recentEvents: BridgeEvent[] = [];
 
   constructor(
-    private readonly vconsole: VConsoleClient,
+    private readonly gameClient: GameCommandClient,
     private readonly effects: Map<string, GameEffect>,
+    private readonly gameCommandMode: GameCommandMode,
     private readonly allowCheatEffects: boolean,
     private readonly allowDestructiveEffects: boolean,
     private readonly maxQueueSize: number,
@@ -80,7 +84,25 @@ export class EffectManager extends EventEmitter<{
       }
 
       const effect = this.effects.get(effectReq.id);
-      if (effect?.destructive && !this.allowDestructiveEffects) {
+      if (!effect) {
+        this.pushEvent("error", `Unknown effect: ${effectReq.id}`, {
+          viewer,
+          reward: reward.name,
+        });
+        return;
+      }
+
+      if (this.isCfgBindBlocked(effect)) {
+        this.pushEvent("error", `Effect "${effect.name}" ${CFG_BIND_BLOCKED_MESSAGE}`, {
+          effectId: effect.id,
+          viewer,
+          reward: reward.name,
+          mode: "cfg-bind",
+        });
+        return;
+      }
+
+      if (effect.destructive && !this.allowDestructiveEffects) {
         this.pushEvent(
           "error",
           `Destructive effect "${effect.name}" blocked (ALLOW_DESTRUCTIVE_EFFECTS=false)`,
@@ -89,12 +111,8 @@ export class EffectManager extends EventEmitter<{
         return;
       }
 
-      const durationSec = effectReq.durationSec ?? effect?.defaultDurationSec ?? 30;
-      const mergedParams = mergeEffectParams(
-        effect ?? ({ defaultParams: undefined } as GameEffect),
-        effectReq.params,
-        reward.usesUserInput ? userInput : undefined,
-      );
+      const durationSec = effectReq.durationSec ?? effect.defaultDurationSec ?? 30;
+      const mergedParams = mergeEffectParams(effect, effectReq.params, reward.usesUserInput ? userInput : undefined);
 
       this.queue.push({
         effectId: effectReq.id,
@@ -159,7 +177,7 @@ export class EffectManager extends EventEmitter<{
     if (active.timer) clearTimeout(active.timer);
     const effect = this.effects.get(effectId);
     if (effect) {
-      await effect.revert(this.vconsole);
+      await effect.revert(this.gameClient);
       this.pushEvent("effect_reverted", `Reverted ${effect.name}`, { effectId });
     }
     this.activeByEffect.delete(effectId);
@@ -171,6 +189,10 @@ export class EffectManager extends EventEmitter<{
     for (const id of ids) {
       await this.revertEffect(id);
     }
+  }
+
+  private isCfgBindBlocked(effect: GameEffect): boolean {
+    return this.gameCommandMode === "cfg-bind" && !effect.cfgBindSafe;
   }
 
   private async processQueue(): Promise<void> {
@@ -190,6 +212,15 @@ export class EffectManager extends EventEmitter<{
     const effect = this.effects.get(item.effectId);
     if (!effect) {
       this.pushEvent("error", `Unknown effect: ${item.effectId}`);
+      return;
+    }
+
+    if (this.isCfgBindBlocked(effect)) {
+      this.pushEvent("error", `Effect "${effect.name}" ${CFG_BIND_BLOCKED_MESSAGE}`, {
+        effectId: item.effectId,
+        viewer: item.viewer,
+        mode: "cfg-bind",
+      });
       return;
     }
 
@@ -218,11 +249,11 @@ export class EffectManager extends EventEmitter<{
     const existing = this.activeByEffect.get(item.effectId);
     if (existing?.timer) {
       clearTimeout(existing.timer);
-      await effect.revert(this.vconsole);
+      await effect.revert(this.gameClient);
     }
 
     try {
-      await effect.apply(this.vconsole, item.params);
+      await effect.apply(this.gameClient, item.params);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.pushEvent("error", message, { effectId: item.effectId, viewer: item.viewer });

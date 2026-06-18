@@ -1,36 +1,97 @@
 # Twitch Deadlock Bridge
 
-Внешний мост между **Twitch Channel Points** и игрой **Deadlock** (retail). Зритель тратит баллы канала — bridge отправляет команды в игру через **VConsole**.
+Внешний мост между **Twitch Channel Points** и игрой **Deadlock** (retail). Зритель тратит баллы канала — bridge отправляет команды в игру.
 
 Документация по моддингу Deadlock: [Modding Guides](https://deadlockmodding.pages.dev/modding-guides/)
 
 ## Архитектура
 
 ```
-Twitch (Channel Points) → EventSub WebSocket → Bridge App → VConsole (:29000) → Deadlock
+Twitch (Channel Points) → EventSub WebSocket → Bridge App → GameCommandClient → Deadlock
 ```
+
+Два транспорта:
+
+| Режим | Транспорт | Когда использовать |
+|-------|-----------|-------------------|
+| `vconsole` | TCP VConsole `:29000` | sandbox / custom / dev |
+| `cfg-bind` | запись cfg + keypress | official matchmaking (без `-insecure`) |
 
 Компоненты в репозитории:
 
 | Путь | Назначение |
 |------|------------|
-| `twitch-deadlock-bridge/` | Node.js приложение (Twitch + VConsole + UI) |
+| `twitch-deadlock-bridge/` | Node.js приложение (Twitch + game transport + UI) |
 | `Deadlock/content/citadel_addons/twitch_integration/` | Справочные alias-команды |
 | `Deadlock/game/citadel_addons/twitch_integration/` | Манифест addon для упаковки |
 
-## Быстрый старт
+## Режимы отправки команд
 
-### 1. Запуск Deadlock
+### vconsole (sandbox / custom / dev)
 
 Steam → Deadlock → Свойства → Параметры запуска:
 
 ```
--vconsole
+-vconsole -insecure
 ```
 
-Консоль в игре: **F7**. Команда скрытия HUD: `citadel_hud_visible 0`.
+- Bridge подключается к TCP `127.0.0.1:29000` (`VCONSOLE_HOST` / `VCONSOLE_PORT`)
+- Доступны **все** эффекты (с учётом `ALLOW_CHEAT_EFFECTS` / `ALLOW_DESTRUCTIVE_EFFECTS`)
+- Консоль в игре: **F7**
+- **Не подходит для official matchmaking servers** — требует `-insecure`
 
-### 2. Установка bridge
+`.env`:
+
+```env
+GAME_COMMAND_MODE=vconsole
+VCONSOLE_HOST=127.0.0.1
+VCONSOLE_PORT=29000
+```
+
+### cfg-bind (official-safe)
+
+Client-side эффекты без `-insecure`: bridge пишет команду в cfg-файл и симулирует нажатие клавиши, забинженной на `exec`.
+
+**Настройка игры:**
+
+1. Укажите `DEADLOCK_CFG_DIR` в `.env` (путь к папке cfg Deadlock).
+2. Добавьте launch option:
+   ```
+   -exec autoexec
+   ```
+3. При **первом запуске** bridge автоматически допишет в `autoexec.cfg` (если bind ещё нет):
+   ```
+   bind F10 "exec twitch_bridge_effect.cfg"
+   ```
+4. Настройте `.env`:
+   ```env
+   GAME_COMMAND_MODE=cfg-bind
+   DEADLOCK_CFG_DIR=C:\Program Files (x86)\Steam\steamapps\common\Deadlock\game\citadel\cfg
+   CFG_BIND_FILENAME=twitch_bridge_effect.cfg
+   CFG_TRIGGER_KEY=F10
+   ```
+
+**Как применяется эффект:** при активации (Twitch, `/control` или API) bridge записывает команды эффекта в `twitch_bridge_effect.cfg` и симулирует нажатие **F10** — игра выполняет `exec` и применяет эффект на клиенте. Отдельный bind для каждого эффекта не нужен.
+
+Ручная настройка bind (если не хотите auto-setup):
+
+```
+bind F10 "exec twitch_bridge_effect.cfg"
+```
+
+в `autoexec.cfg`.
+
+**Ограничения official-safe режима:**
+
+- Награды на **каст скиллов** (`skill1_cast`–`skill4_cast`) **отключены**
+- Награды на **парирование** (`melee_parry_press`) **отключены**
+- `minimap_spin`, `disconnect` и другие input/destructive эффекты также недоступны
+
+Статус «Игра» в `/control` означает, что bridge может записать cfg-файл в `DEADLOCK_CFG_DIR` (не TCP-подключение).
+
+## Быстрый старт
+
+### 1. Установка bridge
 
 ```bash
 cd twitch-deadlock-bridge
@@ -38,7 +99,9 @@ npm install
 cp .env.example .env
 ```
 
-### 3. Тест без Twitch
+Выберите режим в `.env` (см. выше) и настройте Deadlock.
+
+### 2. Тест без Twitch
 
 ```bash
 npm run test
@@ -48,7 +111,7 @@ npm run test
 
 В поле **«Текст награды (userInput)»** можно ввести текст, который зритель вводит при активации награды (например, `инфернус` для ростера).
 
-### 4. Настройка Twitch
+### 3. Настройка Twitch
 
 1. Создайте приложение на [dev.twitch.tv](https://dev.twitch.tv/console/apps)
 2. Получите OAuth-токен со scope `channel:read:redemptions`
@@ -90,23 +153,27 @@ npm run dev
 
 ## Встроенные эффекты
 
-| ID | Описание | ConVar / command | Retail |
-|----|----------|------------------|--------|
-| `hud_hide` | Скрыть HUD | `citadel_hud_visible 0/1` | Да |
-| `crosshair_chaos` | Случайный прицел | `citadel_crosshair_*` | Да |
-| `skill1_cast` … `skill4_cast` | Каст скиллов 1–4 | `+in_abilityN / -in_abilityN` | Да |
-| `roster_high_priority_set` | High priority roster | `citadel_hero_roster_high_priority <id>` | Да |
-| `minimap_customize` | Миникарта: размер/центр/прозрачность | convar mapping в `config/minimap-convars.json` | Да |
-| `minimap_spin` | Миникарта крутится | rotation convar (после F7 discovery) | Да |
-| `melee_parry_press` | Парирование | `+in_helditem / -in_helditem` (настраивается) | Да |
-| `disconnect` | Выход из матча | `disconnect` | Да (destructive) |
+| ID | Описание | vconsole | cfg-bind |
+|----|----------|----------|----------|
+| `hud_hide` | Скрыть HUD | Да | Да |
+| `crosshair_chaos` | Случайный прицел | Да | Да |
+| `random_sensitivity` | Рандомная чувствительность | Да | Да |
+| `roster_high_priority_set` | High priority roster | Да | Да |
+| `minimap_customize` | Миникарта: размер/центр/прозрачность | Да | Да |
+| `minimap_spin` | Миникарта крутится | Да | Нет |
+| `skill1_cast` … `skill4_cast` | Каст скиллов 1–4 | Да | Нет |
+| `melee_parry_press` | Парирование | Да | Нет |
+| `disconnect` | Выход из матча | Да* | Нет |
+
+\* `disconnect` через Twitch только при `ALLOW_DESTRUCTIVE_EFFECTS=true`.
 
 Добавление нового эффекта:
 
 1. Создайте файл в `src/effects/`
 2. Зарегистрируйте в `src/effects/registry.ts`
-3. Добавьте запись в `config/effects.json`
+3. Добавьте запись в `config/effects.json` (укажите `cfgBindSafe`)
 4. Привяжите reward в `config/rewards.json`
+5. В режиме **cfg-bind** эффект с `cfgBindSafe: true` автоматически применяется на клиенте при активации: bridge пишет команды в cfg-файл и нажимает **F10** (bind настраивается при старте bridge). Для проверки используйте `/control` или `POST /api/test-effect`.
 
 ## Герои и алиасы
 
@@ -122,7 +189,8 @@ npm run dev
 | `/control` | Панель стримера (статусы, тест с userInput, журнал) |
 | `/overlay` | OBS Browser Source (тосты при активации) |
 | `POST /api/test-effect` | API теста с `userInput` |
-| `GET /api/status` | Статус подключений и активных эффектов |
+| `GET /api/status` | Статус подключений, `gameCommandMode`, активные эффекты |
+| `GET /api/effects` | Каталог эффектов с `cfgBindSafe` |
 
 ## Ручной тест через консоль игры
 
@@ -162,7 +230,8 @@ curl -X POST http://127.0.0.1:3920/api/revert-all
 
 ## Ограничения
 
-- Требуется `-vconsole` в launch options
+- **vconsole**: требует `-vconsole -insecure`, не для official servers
+- **cfg-bind**: только client-side convar эффекты; skill/parry/disconnect/minimap_spin недоступны
 - Cheat-эффекты (`ALLOW_CHEAT_EFFECTS=true`) могут не работать в матчмейкинге
 - **`disconnect`** — необратимый эффект. Может вызвать abandon-штраф. По умолчанию заблокирован для Twitch (`ALLOW_DESTRUCTIVE_EFFECTS=false`); в `/control` требует подтверждение
 - `roster_high_priority_set` парсит `userInput` через `heroes.tsv` + `hero_aliases.json`
@@ -184,7 +253,11 @@ twitch-deadlock-bridge/
 │   ├── control.html
 │   └── overlay.html
 └── src/
-    ├── game/vconsole.ts
+    ├── game/
+    │   ├── game-command-client.ts
+    │   ├── vconsole.ts
+    │   ├── cfg-bind-client.ts
+    │   └── create-game-client.ts
     ├── heroes/hero-resolver.ts
     ├── effects/
     ├── queue/effect-manager.ts
@@ -201,12 +274,23 @@ npm start
 
 ## FAQ
 
-**Игра не реагирует на команды**
+**Игра не реагирует на команды (vconsole)**
 
-- Проверьте `-vconsole` в launch options
+- Проверьте `-vconsole -insecure` в launch options
 - Убедитесь, что Deadlock запущен
 - В панели `/control` статус «Игра» должен быть зелёным
 - Порт VConsole по умолчанию `29000` (`VCONSOLE_PORT` в `.env`)
+
+**Игра не реагирует на команды (cfg-bind)**
+
+- Проверьте `bind F10 "exec twitch_bridge_effect.cfg"` в `autoexec.cfg` (bridge добавляет строку при старте, если её ещё нет)
+- Launch option `-exec autoexec` должен быть задан
+- `DEADLOCK_CFG_DIR` должен указывать на папку cfg игры
+- `CFG_TRIGGER_KEY` в `.env` должен совпадать с клавишей в bind (по умолчанию **F10**)
+- Deadlock должен быть **запущен** — bridge ищет процесс `deadlock.exe` (`DEADLOCK_PROCESS_NAME`, по умолчанию `deadlock`), а не окно по заголовку (иначе может найти Cursor/браузер с «Deadlock» в названии)
+- Если тестируете из браузера `/control`, bridge сам переведёт фокус в игру; вручную нажимать F10 не нужно
+- Если фокус не переключается: запустите bridge и игру с одинаковыми правами (оба без админа или оба от админа)
+- Статус «Игра» = возможность записи в cfg-dir
 
 **Twitch не подключается**
 
@@ -216,5 +300,6 @@ npm start
 **Зритель активировал награду, но ничего не произошло**
 
 - Проверьте `reward_id` в `config/rewards.json`
+- В cfg-bind режиме skill/parry награды отклоняются — смотрите журнал в `/control`
 - Для roster-наград включите `usesUserInput: true` и создайте reward с полем ввода на Twitch
 - Смотрите журнал в `/control`
