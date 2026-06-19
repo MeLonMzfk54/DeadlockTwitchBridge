@@ -19,16 +19,8 @@ public class GameKeySender {
   private const uint WM_KEYDOWN = 0x0100;
   private const uint WM_KEYUP = 0x0101;
   private const int SW_RESTORE = 9;
-  private const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
-  private const uint MOUSEEVENTF_LEFTUP = 0x0004;
 
   public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
-
-  [StructLayout(LayoutKind.Sequential)]
-  struct POINT {
-    public int x;
-    public int y;
-  }
 
   [StructLayout(LayoutKind.Sequential)]
   struct RECT {
@@ -90,15 +82,6 @@ public class GameKeySender {
 
   [DllImport("user32.dll")]
   static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
-
-  [DllImport("user32.dll")]
-  static extern bool GetCursorPos(out POINT lpPoint);
-
-  [DllImport("user32.dll")]
-  static extern bool SetCursorPos(int X, int Y);
-
-  [DllImport("user32.dll")]
-  static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, UIntPtr dwExtraInfo);
 
   [DllImport("user32.dll")]
   static extern void SwitchToThisWindow(IntPtr hWnd, bool fAltTab);
@@ -183,25 +166,6 @@ public class GameKeySender {
     Thread.Sleep(60);
   }
 
-  static void ClickWindowCenter(IntPtr hWnd) {
-    POINT saved;
-    GetCursorPos(out saved);
-
-    RECT rect;
-    if (!GetWindowRect(hWnd, out rect)) return;
-
-    int x = (rect.Left + rect.Right) / 2;
-    int y = (rect.Top + rect.Bottom) / 2;
-
-    SetCursorPos(x, y);
-    Thread.Sleep(30);
-    mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, UIntPtr.Zero);
-    Thread.Sleep(20);
-    mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, UIntPtr.Zero);
-    Thread.Sleep(40);
-    SetCursorPos(saved.x, saved.y);
-  }
-
   static uint SendHardwareKey(byte vk) {
     var down = new INPUT {
       type = INPUT_KEYBOARD,
@@ -251,7 +215,6 @@ public class GameKeySender {
     GetWindowThreadProcessId(hwnd, out gamePid);
 
     RaiseGameWindow(hwnd);
-    ClickWindowCenter(hwnd);
     Thread.Sleep(50);
 
     uint sendInputCount = SendHardwareKey(vk);
