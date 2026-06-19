@@ -8,7 +8,9 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
-    "test": "tsx src/index.ts --test-mode"
+    "test": "tsx src/index.ts --test-mode",
+    "patch-hud-xml": "node scripts/patch-hud-xml.mjs",
+    "test:minimap-spin-center": "node scripts/test-minimap-spin-center.mjs"
   },
   "engines": {
     "node": ">=18"

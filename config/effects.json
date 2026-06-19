@@ -95,15 +95,29 @@
     {
       "id": "minimap_spin",
       "name": "Миникарта крутится",
-      "description": "Вращает миникарту (требует rotation convar в config/minimap-convars.json)",
+      "description": "Вращает миникарту через VConsole setInterval (требует rotation convar в config/minimap-convars.json). Для cfg-bind используйте minimap_spin_center + addon twitch_minimap_fx.",
       "retailSafe": true,
-      "cfgBindSafe": true,
+      "cfgBindSafe": false,
       "defaultDurationSec": 30,
       "category": "hud",
       "defaultParams": {
         "speedDegPerSec": 45,
         "opacity": 0.8,
         "iconLocalPlayerWidth": 12
+      }
+    },
+    {
+      "id": "minimap_spin_center",
+      "name": "Миникарта: крутится по центру",
+      "description": "Увеличенная миникарта по центру экрана с вращением (требует addon twitch_minimap_fx; bridge выставляет bridge_mm_fx_* convars)",
+      "retailSafe": true,
+      "cfgBindSafe": true,
+      "defaultDurationSec": 30,
+      "category": "hud",
+      "defaultParams": {
+        "size": 900,
+        "spinDegPerSec": 45,
+        "opacity": 0.85
       }
     },
     {

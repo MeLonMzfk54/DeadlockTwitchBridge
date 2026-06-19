@@ -1,0 +1,9 @@
+"AddonInfo"
+{
+	addonSteamAppID		1422450
+	addontitle			"Twitch Minimap FX"
+	addonversion		1
+	addontagline		"Center enlarged spinning minimap for Twitch Deadlock Bridge"
+	addonauthor			"twitch-deadlock-bridge"
+	addonDescription	"Client-side Panorama runtime for minimap_spin_center bridge effect."
+}

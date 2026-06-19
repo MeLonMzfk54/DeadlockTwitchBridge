@@ -23,6 +23,7 @@ Twitch (Channel Points) → EventSub WebSocket → Bridge App → GameCommandCli
 |------|------------|
 | `twitch-deadlock-bridge/` | Node.js приложение (Twitch + game transport + UI) |
 | `Deadlock/content/citadel_addons/twitch_integration/` | Справочные alias-команды |
+| `Deadlock/content/citadel_addons/twitch_minimap_fx/` | Panorama addon для `minimap_spin_center` |
 | `Deadlock/game/citadel_addons/twitch_integration/` | Манифест addon для упаковки |
 
 ## Режимы отправки команд
@@ -85,7 +86,8 @@ bind F10 "exec twitch_bridge_effect.cfg"
 
 - Награды на **каст скиллов** (`skill1_cast`–`skill4_cast`) **отключены**
 - Награды на **парирование** (`melee_parry_press`) **отключены**
-- `minimap_spin`, `disconnect` и другие input/destructive эффекты также недоступны
+- `minimap_spin` (VConsole setInterval), `disconnect` и другие input/destructive эффекты также недоступны в cfg-bind
+- `minimap_spin_center` работает в cfg-bind при установленном addon `twitch_minimap_fx`
 
 Статус «Игра» в `/control` означает, что bridge может записать cfg-файл в `DEADLOCK_CFG_DIR` (не TCP-подключение).
 
@@ -160,7 +162,8 @@ npm run dev
 | `random_sensitivity` | Рандомная чувствительность | Да | Да |
 | `roster_high_priority_set` | High priority roster | Да | Да |
 | `minimap_customize` | Миникарта: размер/центр/прозрачность | Да | Да |
-| `minimap_spin` | Миникарта крутится | Да | Нет |
+| `minimap_spin` | Миникарта крутится (VConsole setInterval) | Да | Нет |
+| `minimap_spin_center` | Миникарта крутится по центру (addon + convars) | Да | Да |
 | `skill1_cast` … `skill4_cast` | Каст скиллов 1–4 | Да | Нет |
 | `melee_parry_press` | Парирование | Да | Нет |
 | `disconnect` | Выход из матча | Да* | Нет |
@@ -226,6 +229,7 @@ curl -X POST http://127.0.0.1:3920/api/revert-all
 | Файл | Назначение |
 |------|------------|
 | `config/minimap-convars.json` | Convar'ы миникарты (scale, center, opacity, rotation). Поля `null` — заполнить после `find minimap` в F7 |
+| `config/minimap-fx-convars.json` | Convar'ы для `minimap_spin_center` → addon `twitch_minimap_fx` |
 | `config/input-binds.json` | Input bind парирования (`meleeParry.press/release`) |
 
 ## Ограничения
@@ -236,6 +240,7 @@ curl -X POST http://127.0.0.1:3920/api/revert-all
 - **`disconnect`** — необратимый эффект. Может вызвать abandon-штраф. По умолчанию заблокирован для Twitch (`ALLOW_DESTRUCTIVE_EFFECTS=false`); в `/control` требует подтверждение
 - `roster_high_priority_set` парсит `userInput` через `heroes.tsv` + `hero_aliases.json`
 - `minimap_spin` требует настроенный `rotation` convar в `minimap-convars.json` (проверьте в F7: `find minimap`)
+- `minimap_spin_center` требует установленный addon `twitch_minimap_fx` (см. `Deadlock/content/citadel_addons/twitch_minimap_fx/PACKAGING.md`; после обновления игры: `npm run patch-hud-xml`)
 - `melee_parry_press` использует bind из `input-binds.json` — проверьте в F7: `find in_held`
 
 ## Структура проекта

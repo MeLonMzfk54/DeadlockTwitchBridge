@@ -56,6 +56,11 @@
       "effects": [{ "id": "minimap_spin", "durationSec": 30 }],
       "cooldownSec": 120
     },
+    "REWARD_ID_MINIMAP_SPIN_CENTER": {
+      "name": "Миникарта: крутится по центру",
+      "effects": [{ "id": "minimap_spin_center", "durationSec": 30 }],
+      "cooldownSec": 120
+    },
     "REWARD_ID_PARRY": {
       "name": "Парирование",
       "effects": [{ "id": "melee_parry_press" }],

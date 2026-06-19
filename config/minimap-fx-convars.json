@@ -1,0 +1,12 @@
+{
+  "active": "bridge_mm_fx_active",
+  "size": "bridge_mm_fx_size",
+  "spinDegPerSec": "bridge_mm_fx_spin",
+  "opacity": "bridge_mm_fx_opacity",
+  "defaults": {
+    "active": 0,
+    "size": 400,
+    "spinDegPerSec": 0,
+    "opacity": 1
+  }
+}

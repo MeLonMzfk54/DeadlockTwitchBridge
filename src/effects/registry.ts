@@ -5,6 +5,7 @@ import { hudHideEffect } from "./hud-hide.js";
 import { disconnectEffect } from "./disconnect.js";
 import { minimapCustomizeEffect } from "./minimap-customize.js";
 import { minimapSpinEffect } from "./minimap-spin.js";
+import { minimapSpinCenterEffect } from "./minimap-spin-center.js";
 import { meleeParryPressEffect } from "./melee-parry.js";
 import { createRosterHighPriorityEffect } from "./roster-high-priority.js";
 import { randomSensitivityEffect } from "./random-sensitivity.js";
@@ -31,6 +32,7 @@ export function createEffectRegistry(
     createRosterHighPriorityEffect(heroResolver),
     minimapCustomizeEffect,
     minimapSpinEffect,
+    minimapSpinCenterEffect,
     disconnectEffect,
     meleeParryPressEffect,
   ];
