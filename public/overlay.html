@@ -21,7 +21,7 @@
       padding: 14px 16px;
       border-radius: 14px;
       background: rgba(10, 16, 24, 0.88);
-      border: 1px solid rgba(107, 220, 139, 0.45);
+      border: 1px solid rgba(106, 227, 229, 0.45);
       color: #e8eef5;
       box-shadow: 0 8px 32px rgba(0,0,0,0.45);
       opacity: 0;
@@ -39,11 +39,14 @@
       padding: 3px 8px;
       border-radius: 999px;
       background: rgba(107, 220, 139, 0.16);
-      color: #6bdc8b;
+      color: #DB694E;
       font-size: 0.72rem;
       font-weight: 700;
       letter-spacing: 0.06em;
       text-transform: uppercase;
+    }
+    .toast .label span {
+      color: #0abab5;
     }
     .toast .title {
       margin: 0 0 8px;
@@ -74,7 +77,7 @@
     <div class="label" id="toastLabel">Twitch Reward</div>
     <div class="title" id="toastTitle">Эффект активирован</div>
     <p class="meta" id="toastViewerMeta"></p>
-    <p class="meta" id="toastMeta"></p>
+    <!-- <p class="meta" id="toastMeta"></p> -->
   </div>
 
   <script>
@@ -101,7 +104,6 @@
             meta = `heroes: ${heroIds.join(", ")}`;
           }
           showToast({
-            title: latest.message,
             meta,
             viewer,
             isRewardEvent: latest.type === "reward_received",
@@ -110,16 +112,16 @@
       } catch {}
     }
 
-    function showToast({ title, meta, viewer, isRewardEvent }) {
+    function showToast({ meta, viewer, isRewardEvent }) {
       const toast = document.getElementById("toast");
       const label = document.getElementById("toastLabel");
       const viewerMeta = document.getElementById("toastViewerMeta");
       const commonMeta = document.getElementById("toastMeta");
 
-      label.textContent = isRewardEvent ? "Reward Received" : "Effect Activated";
-      document.getElementById("toastTitle").textContent = title;
-      viewerMeta.textContent = viewer ? `Заказал: ${String(viewer)}` : "";
-      commonMeta.textContent = meta ? `Награда: ${String(meta)}` : "";
+      label.innerHTML = `<span>${String(viewer)}</span> Нагадил` ;
+      document.getElementById("toastTitle").textContent = meta ? `Эффект: ${String(meta)}` : "";
+      viewerMeta.textContent = 'Зачем ты это сделал?';
+      // commonMeta.textContent = meta ? `Эффект: ${String(meta)}` : "";
 
       toast.classList.add("visible");
       setTimeout(() => toast.classList.remove("visible"), 5000);
