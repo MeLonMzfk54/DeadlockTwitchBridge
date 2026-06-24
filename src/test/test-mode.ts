@@ -8,7 +8,7 @@ export const TEST_CONSOLE_COMMANDS: Record<string, string> = {
   "roster-infernus": "citadel_hero_roster_high_priority 1",
   "roster-clear": "citadel_hero_roster_high_priority 0",
   "disconnect": "disconnect",
-  "parry": "+in_helditem; -in_helditem",
+  "parry": "F key press (via bridge effect)",
 };
 
 export const TEST_EFFECT_ALIASES: Record<string, { effectId: string; durationSec: number }> = {

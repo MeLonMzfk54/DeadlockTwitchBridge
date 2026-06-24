@@ -1,7 +1,6 @@
 {
-  "_discoveryNote": "Verify parry bind in F7: find in_held / key_listboundkeys. Update press/release if different.",
+  "_discoveryNote": "Default parry key in Deadlock is F. Change key if your bind differs.",
   "meleeParry": {
-    "press": "+in_helditem",
-    "release": "-in_helditem"
+    "key": "F"
   }
 }

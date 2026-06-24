@@ -2,34 +2,31 @@ import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import type { GameCommandClient } from "../game/game-command-client.js";
 import { projectRoot } from "../config.js";
+import {
+  assertWindowsPlatform,
+  isGameProcessRunning,
+  parseVirtualKeyCode,
+  pressVirtualKey,
+} from "../game/win-key-sender.js";
 import type { GameEffect } from "./types.js";
 
-interface InputBind {
-  press: string;
-  release: string;
-}
+const DEFAULT_PARRY_KEY = "F";
 
-function loadMeleeParryBind(): InputBind {
+function loadMeleeParryKey(): string {
   const path = join(projectRoot, "config", "input-binds.json");
   if (!existsSync(path)) {
-    return { press: "+in_helditem", release: "-in_helditem" };
+    return DEFAULT_PARRY_KEY;
   }
-  const raw = JSON.parse(readFileSync(path, "utf8")) as { meleeParry?: InputBind };
-  return raw.meleeParry ?? { press: "+in_helditem", release: "-in_helditem" };
+  const raw = JSON.parse(readFileSync(path, "utf8")) as { meleeParry?: { key?: string } };
+  const key = raw.meleeParry?.key?.trim();
+  return key || DEFAULT_PARRY_KEY;
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function paramHoldMs(params?: Record<string, unknown>): number {
-  const value = params?.holdMs;
-  if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, value);
-  if (typeof value === "string") {
-    const parsed = Number.parseInt(value, 10);
-    if (Number.isFinite(parsed)) return Math.max(0, parsed);
-  }
-  return 50;
+function gameTargetFromEnv(): { processName: string; windowTitleContains: string } {
+  return {
+    processName: process.env.DEADLOCK_PROCESS_NAME ?? "deadlock",
+    windowTitleContains: process.env.DEADLOCK_WINDOW_TITLE ?? "",
+  };
 }
 
 export const meleeParryPressEffect: GameEffect = {
@@ -37,20 +34,35 @@ export const meleeParryPressEffect: GameEffect = {
   name: "Парирование (melee parry)",
   category: "skill",
   retailSafe: true,
-  cfgBindSafe: false,
+  cfgBindSafe: true,
   defaultDurationSec: 1,
   oneShot: true,
-  defaultParams: { holdMs: 50 },
-  async apply(client: GameCommandClient, params?: Record<string, unknown>): Promise<void> {
-    const bind = loadMeleeParryBind();
-    const holdMs = paramHoldMs(params);
-    if (holdMs > 0) {
-      await client.sendCommand(bind.press);
-      await sleep(holdMs);
-      await client.sendCommand(bind.release);
-      return;
+  async apply(_client: GameCommandClient): Promise<void> {
+    assertWindowsPlatform();
+
+    const keyName = loadMeleeParryKey();
+    const vkCode = parseVirtualKeyCode(keyName);
+    const { processName, windowTitleContains } = gameTargetFromEnv();
+
+    const gameState = await isGameProcessRunning(processName, windowTitleContains);
+    if (!gameState.processRunning) {
+      throw new Error(
+        `Deadlock process "${processName}" not found. Start the game or set DEADLOCK_PROCESS_NAME in .env.`,
+      );
     }
-    await client.sendCommand(`${bind.press}; ${bind.release}`);
+
+    const keyResult = await pressVirtualKey(vkCode, { processName, windowTitleContains });
+    if (!keyResult.windowFound) {
+      throw new Error(`Deadlock window not found for process "${processName}".`);
+    }
+    if (!keyResult.keySent) {
+      throw new Error(`${keyName} key press failed (SendInput=0).`);
+    }
+
+    const focusNote = keyResult.focused ? "focused=ok" : "focused=no";
+    console.log(
+      `[game] melee-parry: ${keyName} pressed (${focusNote}, sendInput=${keyResult.sendInputCount})`,
+    );
   },
   async revert(): Promise<void> {
     // oneShot effect: nothing to revert

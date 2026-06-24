@@ -85,7 +85,6 @@ bind F10 "exec twitch_bridge_effect.cfg"
 **Ограничения official-safe режима:**
 
 - Награды на **каст скиллов** (`skill1_cast`–`skill4_cast`) **отключены**
-- Награды на **парирование** (`melee_parry_press`) **отключены**
 - `minimap_spin` (VConsole setInterval), `disconnect` и другие input/destructive эффекты также недоступны в cfg-bind
 - `minimap_spin_center` работает в cfg-bind при установленном addon `twitch_minimap_fx`
 
@@ -165,7 +164,7 @@ npm run dev
 | `minimap_spin` | Миникарта крутится (VConsole setInterval) | Да | Нет |
 | `minimap_spin_center` | Миникарта крутится по центру (addon + convars) | Да | Да |
 | `skill1_cast` … `skill4_cast` | Каст скиллов 1–4 | Да | Нет |
-| `melee_parry_press` | Парирование | Да | Нет |
+| `melee_parry_press` | Парирование (симуляция клавиши F) | Да | Да |
 | `disconnect` | Выход из матча | Да* | Нет |
 
 \* `disconnect` через Twitch только при `ALLOW_DESTRUCTIVE_EFFECTS=true`.
@@ -230,18 +229,18 @@ curl -X POST http://127.0.0.1:3920/api/revert-all
 |------|------------|
 | `config/minimap-convars.json` | Convar'ы миникарты (scale, center, opacity, rotation). Поля `null` — заполнить после `find minimap` в F7 |
 | `config/minimap-fx-convars.json` | Convar'ы для `minimap_spin_center` → addon `twitch_minimap_fx` |
-| `config/input-binds.json` | Input bind парирования (`meleeParry.press/release`) |
+| `config/input-binds.json` | Клавиша парирования для `melee_parry_press` (`meleeParry.key`, по умолчанию F) |
 
 ## Ограничения
 
 - **vconsole**: требует `-vconsole -insecure`, не для official servers
-- **cfg-bind**: только client-side convar эффекты; skill/parry/disconnect/minimap_spin недоступны
+- **cfg-bind**: client-side convar эффекты и `melee_parry_press` (симуляция клавиши); skill cast/disconnect/minimap_spin недоступны
 - Cheat-эффекты (`ALLOW_CHEAT_EFFECTS=true`) могут не работать в матчмейкинге
 - **`disconnect`** — необратимый эффект. Может вызвать abandon-штраф. По умолчанию заблокирован для Twitch (`ALLOW_DESTRUCTIVE_EFFECTS=false`); в `/control` требует подтверждение
 - `roster_high_priority_set` парсит `userInput` через `heroes.tsv` + `hero_aliases.json`
 - `minimap_spin` требует настроенный `rotation` convar в `minimap-convars.json` (проверьте в F7: `find minimap`)
 - `minimap_spin_center` требует установленный addon `twitch_minimap_fx` (см. `Deadlock/content/citadel_addons/twitch_minimap_fx/PACKAGING.md`; после обновления игры: `npm run patch-hud-xml`)
-- `melee_parry_press` использует bind из `input-binds.json` — проверьте в F7: `find in_held`
+- `melee_parry_press` симулирует нажатие клавиши из `input-binds.json` (по умолчанию **F**); Deadlock должен быть запущен
 
 ## Структура проекта
 
@@ -305,6 +304,6 @@ npm start
 **Зритель активировал награду, но ничего не произошло**
 
 - Проверьте `reward_id` в `config/rewards.json`
-- В cfg-bind режиме skill/parry награды отклоняются — смотрите журнал в `/control`
+- В cfg-bind режиме skill cast награды отклоняются — смотрите журнал в `/control`
 - Для roster-наград включите `usesUserInput: true` и создайте reward с полем ввода на Twitch
 - Смотрите журнал в `/control`

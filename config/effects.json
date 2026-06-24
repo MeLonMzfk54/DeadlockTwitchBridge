@@ -128,8 +128,7 @@
       "cfgBindSafe": true,
       "defaultDurationSec": 1,
       "category": "skill",
-      "oneShot": true,
-      "defaultParams": { "holdMs": 50 }
+      "oneShot": true
     },
     {
       "id": "disconnect",

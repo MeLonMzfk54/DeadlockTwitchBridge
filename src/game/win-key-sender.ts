@@ -42,7 +42,11 @@ export function parseVirtualKeyCode(keyName: string): number {
     if (vk !== undefined) return vk;
   }
 
-  throw new Error(`Unsupported CFG_TRIGGER_KEY "${keyName}". Use F1 through F24.`);
+  if (/^[A-Z]$/.test(normalized)) {
+    return normalized.charCodeAt(0);
+  }
+
+  throw new Error(`Unsupported key "${keyName}". Use F1 through F24 or A through Z.`);
 }
 
 export function assertWindowsPlatform(): void {
