@@ -5,6 +5,7 @@ import {
 } from "./config.js";
 import { createGameCommandClient } from "./game/create-game-client.js";
 import { ensureCfgBindSetup } from "./game/ensure-cfg-bind-setup.js";
+import { stopWasdInvertHook } from "./game/wasd-invert-hook.js";
 import { createEffectRegistry } from "./effects/registry.js";
 import { createHeroResolver } from "./heroes/hero-resolver.js";
 import { EffectManager } from "./queue/effect-manager.js";
@@ -156,6 +157,13 @@ async function main(): Promise<void> {
     );
   }
   console.log(`Open control panel: http://${config.httpHost}:${config.httpPort}/control`);
+
+  const shutdown = (): void => {
+    stopWasdInvertHook();
+    process.exit(0);
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 }
 
 main().catch((error) => {

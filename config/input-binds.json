@@ -1,6 +1,12 @@
 {
-  "_discoveryNote": "Default parry key in Deadlock is F. Change key if your bind differs.",
+  "_discoveryNote": "Default parry key in Deadlock is F. Movement keys for wasd_invert Windows hook.",
   "meleeParry": {
     "key": "F"
+  },
+  "movement": {
+    "forward": { "key": "w" },
+    "back": { "key": "s" },
+    "left": { "key": "a" },
+    "right": { "key": "d" }
   }
 }

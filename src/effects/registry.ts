@@ -7,8 +7,10 @@ import { minimapCustomizeEffect } from "./minimap-customize.js";
 import { minimapSpinEffect } from "./minimap-spin.js";
 import { minimapSpinCenterEffect } from "./minimap-spin-center.js";
 import { meleeParryPressEffect } from "./melee-parry.js";
+import { mouseInvertEffect } from "./mouse-invert.js";
 import { createRosterHighPriorityEffect } from "./roster-high-priority.js";
 import { randomSensitivityEffect } from "./random-sensitivity.js";
+import { wasdInvertEffect } from "./wasd-invert.js";
 import type { GameEffect } from "./types.js";
 import {
   skill1CastEffect,
@@ -35,6 +37,8 @@ export function createEffectRegistry(
     minimapSpinCenterEffect,
     disconnectEffect,
     meleeParryPressEffect,
+    mouseInvertEffect,
+    wasdInvertEffect,
   ];
 
   const registry = new Map<string, GameEffect>();

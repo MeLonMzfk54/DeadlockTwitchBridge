@@ -61,6 +61,16 @@
       "effects": [{ "id": "minimap_spin_center", "durationSec": 30 }],
       "cooldownSec": 120
     },
+    "REWARD_ID_MOUSE_INVERT": {
+      "name": "Инверсия мыши",
+      "effects": [{ "id": "mouse_invert", "durationSec": 30 }],
+      "cooldownSec": 60
+    },
+    "REWARD_ID_WASD_INVERT": {
+      "name": "Инверсия WASD",
+      "effects": [{ "id": "wasd_invert", "durationSec": 30 }],
+      "cooldownSec": 60
+    },
     "REWARD_ID_PARRY": {
       "name": "Парирование",
       "effects": [{ "id": "melee_parry_press" }],

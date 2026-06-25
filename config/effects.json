@@ -121,6 +121,24 @@
       }
     },
     {
+      "id": "mouse_invert",
+      "name": "Инверсия мыши (X + Y)",
+      "description": "Инвертирует ось X и Y мыши через mouse_inverty/mouse_invertx (или m_pitch/m_yaw). Revert возвращает defaults из config/input-convars.json.",
+      "retailSafe": true,
+      "cfgBindSafe": true,
+      "defaultDurationSec": 30,
+      "category": "other"
+    },
+    {
+      "id": "wasd_invert",
+      "name": "Инверсия WASD",
+      "description": "Меняет местами W/S и A/D через Windows keyboard hook (только когда Deadlock в фокусе). Клавиши в config/input-binds.json.",
+      "retailSafe": true,
+      "cfgBindSafe": true,
+      "defaultDurationSec": 30,
+      "category": "other"
+    },
+    {
       "id": "melee_parry_press",
       "name": "Парирование (melee parry)",
       "description": "Прожимает кнопку парирования ближнего боя",

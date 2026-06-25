@@ -159,6 +159,8 @@ npm run dev
 | `hud_hide` | Скрыть HUD | Да | Да |
 | `crosshair_chaos` | Случайный прицел | Да | Да |
 | `random_sensitivity` | Рандомная чувствительность | Да | Да |
+| `mouse_invert` | Инверсия мыши (X + Y) | Да | Да |
+| `wasd_invert` | Инверсия WASD (Windows hook) | Да | Да |
 | `roster_high_priority_set` | High priority roster | Да | Да |
 | `minimap_customize` | Миникарта: размер/центр/прозрачность | Да | Да |
 | `minimap_spin` | Миникарта крутится (VConsole setInterval) | Да | Нет |
@@ -229,7 +231,8 @@ curl -X POST http://127.0.0.1:3920/api/revert-all
 |------|------------|
 | `config/minimap-convars.json` | Convar'ы миникарты (scale, center, opacity, rotation). Поля `null` — заполнить после `find minimap` в F7 |
 | `config/minimap-fx-convars.json` | Convar'ы для `minimap_spin_center` → addon `twitch_minimap_fx` |
-| `config/input-binds.json` | Клавиша парирования для `melee_parry_press` (`meleeParry.key`, по умолчанию F) |
+| `config/input-binds.json` | Клавиша парирования для `melee_parry_press` и клавиши движения для `wasd_invert` (Windows hook) |
+| `config/input-convars.json` | Convar'ы инверсии мыши для `mouse_invert` (`mouse_inverty`, `mouse_invertx`, fallback `m_pitch`/`m_yaw`) |
 
 ## Ограничения
 
