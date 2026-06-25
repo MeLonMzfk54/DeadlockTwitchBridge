@@ -1,13 +1,13 @@
 {
   "_discoveryNote": "Verify in F7: find invert / find mouse / find pitch / find yaw. Set mouseInvertX to null if mouse_invertx does not exist (m_yaw fallback is used).",
   "mouseInvertY": "mouse_inverty",
-  "mouseInvertX": "mouse_invertx",
+  "mouseInvertX": null,
   "mPitch": "m_pitch",
   "mYaw": "m_yaw",
   "defaults": {
     "mouseInvertY": 0,
     "mouseInvertX": 0,
     "m_pitch": 0.022,
-    "m_yaw": 0.022
+    "m_yaw": 0.044
   }
 }
