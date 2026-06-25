@@ -26,7 +26,7 @@ function loadMapping(): InputConvarMapping {
       mouseInvertX: null,
       mPitch: "m_pitch",
       mYaw: "m_yaw",
-      defaults: { mouseInvertY: 0, mouseInvertX: 0, m_pitch: 0.022, m_yaw: 0.044 },
+      defaults: { mouseInvertY: 0, mouseInvertX: 0, m_pitch: 0.022, m_yaw: 0.022 },
     };
   }
   return JSON.parse(readFileSync(path, "utf8")) as InputConvarMapping;
@@ -45,7 +45,7 @@ function buildApplyCommands(mapping: InputConvarMapping): Array<{ name: string; 
 
   // Deadlock has mouse_inverty but no mouse_invertx — invert X via negated m_yaw.
   if (mapping.mYaw) {
-    const base = defaults.m_yaw ?? 0.044;
+    const base = defaults.m_yaw ?? 0.022;
     commands.push({ name: mapping.mYaw, value: -Math.abs(base) });
   } else if (mapping.mouseInvertX) {
     commands.push({ name: mapping.mouseInvertX, value: 1 });
@@ -65,7 +65,7 @@ function buildRevertCommands(mapping: InputConvarMapping): Array<{ name: string;
   }
 
   if (mapping.mYaw) {
-    commands.push({ name: mapping.mYaw, value: Math.abs(defaults.m_yaw ?? 0.044) });
+    commands.push({ name: mapping.mYaw, value: Math.abs(defaults.m_yaw ?? 0.022) });
   } else if (mapping.mouseInvertX) {
     commands.push({ name: mapping.mouseInvertX, value: defaults.mouseInvertX ?? 0 });
   }

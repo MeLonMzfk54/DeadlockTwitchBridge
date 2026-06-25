@@ -126,7 +126,7 @@
       "description": "Инвертирует ось X и Y мыши через mouse_inverty/mouse_invertx (или m_pitch/m_yaw). Revert возвращает defaults из config/input-convars.json.",
       "retailSafe": true,
       "cfgBindSafe": true,
-      "defaultDurationSec": 30,
+      "defaultDurationSec": 20,
       "category": "other"
     },
     {
