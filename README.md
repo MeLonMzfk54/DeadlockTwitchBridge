@@ -161,6 +161,7 @@ npm run dev
 | `random_sensitivity` | Рандомная чувствительность | Да | Да |
 | `mouse_invert` | Инверсия мыши (X + Y) | Да | Да |
 | `wasd_invert` | Инверсия WASD (Windows hook) | Да | Да |
+| `screen_flip` | Зеркало экрана (Windows overlay) | Да* | Да* |
 | `roster_high_priority_set` | High priority roster | Да | Да |
 | `minimap_customize` | Миникарта: размер/центр/прозрачность | Да | Да |
 | `minimap_spin` | Миникарта крутится (VConsole setInterval) | Да | Нет |
@@ -170,6 +171,23 @@ npm run dev
 | `disconnect` | Выход из матча | Да* | Нет |
 
 \* `disconnect` через Twitch только при `ALLOW_DESTRUCTIVE_EFFECTS=true`.
+
+\* `screen_flip` — Windows-side overlay (не inject). Работает в vconsole и cfg-bind; `syncInput` шлёт convar `m_yaw` через текущий transport. Только Windows + Borderless Windowed.
+
+### `screen_flip` — зеркало экрана
+
+Горизонтальное зеркало картинки поверх окна Deadlock (видят **и стример, и зрители** при правильном OBS).
+
+1. Deadlock в **Borderless Windowed** (не Exclusive Fullscreen).
+2. Награда с `screen_flip` (рекомендуется `durationSec` 20–30, `cooldownSec` ≥ 60–90).
+3. OBS: **Display Capture** монитора с игрой **или** Window Capture оверлея `screen_flip`.
+4. **Не** используйте Game Capture процесса Deadlock — зрители не увидят overlay (он отдельное topmost-окно поверх игры).
+5. Params: `syncInput` (default `true`) — на время flip инвертирует mouse X (`m_yaw`) и меняет A/D; `axis`: `"horizontal"` (MVP). Не стекуйте с `mouse_invert` / `wasd_invert`.
+6. Env: `SCREEN_FLIP_FPS` (default 45), `SCREEN_FLIP_PROCESS_NAME` / `SCREEN_FLIP_WINDOW_TITLE` (fallback на `DEADLOCK_*`).
+
+**Производительность (MVP):** GDI `PrintWindow` / BitBlt только client area + FPS cap. При лагах снизьте `SCREEN_FLIP_FPS` до 30. Оценить: Task Manager (CPU у `powershell`/`Deadlock`) + визуальный lag оверлея vs игра.
+
+**TODO:** DXGI Desktop Duplication → ниже CPU на 1440p/4K.
 
 Добавление нового эффекта:
 
@@ -231,8 +249,8 @@ curl -X POST http://127.0.0.1:3920/api/revert-all
 |------|------------|
 | `config/minimap-convars.json` | Convar'ы миникарты (scale, center, opacity, rotation). Поля `null` — заполнить после `find minimap` в F7 |
 | `config/minimap-fx-convars.json` | Convar'ы для `minimap_spin_center` → addon `twitch_minimap_fx` |
-| `config/input-binds.json` | Клавиша парирования для `melee_parry_press` и клавиши движения для `wasd_invert` (Windows hook) |
-| `config/input-convars.json` | Convar'ы инверсии мыши для `mouse_invert` (`mouse_inverty`, `mouse_invertx`, fallback `m_pitch`/`m_yaw`) |
+| `config/input-binds.json` | Клавиша парирования для `melee_parry_press` и клавиши движения для `wasd_invert` / `screen_flip` syncInput (A/D) |
+| `config/input-convars.json` | Convar'ы инверсии мыши для `mouse_invert` и mouse X для `screen_flip` syncInput (`m_yaw`) |
 
 ## Ограничения
 
@@ -244,6 +262,7 @@ curl -X POST http://127.0.0.1:3920/api/revert-all
 - `minimap_spin` требует настроенный `rotation` convar в `minimap-convars.json` (проверьте в F7: `find minimap`)
 - `minimap_spin_center` требует установленный addon `twitch_minimap_fx` (см. `Deadlock/content/citadel_addons/twitch_minimap_fx/PACKAGING.md`; после обновления игры: `npm run patch-hud-xml`)
 - `melee_parry_press` симулирует нажатие клавиши из `input-binds.json` (по умолчанию **F**); Deadlock должен быть запущен
+- `screen_flip` требует Windows, запущенный Deadlock в Borderless Windowed, OBS Display Capture; см. секцию выше
 
 ## Структура проекта
 
@@ -310,3 +329,8 @@ npm start
 - В cfg-bind режиме skill cast награды отклоняются — смотрите журнал в `/control`
 - Для roster-наград включите `usesUserInput: true` и создайте reward с полем ввода на Twitch
 - Смотрите журнал в `/control`
+
+**`screen_flip`: стример видит зеркало, зрители — нет**
+
+- Переключите OBS на **Display Capture** (или Window Capture оверлея), не Game Capture Deadlock
+- Убедитесь, что игра в Borderless Windowed

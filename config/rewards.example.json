@@ -71,6 +71,11 @@
       "effects": [{ "id": "wasd_invert", "durationSec": 30 }],
       "cooldownSec": 60
     },
+    "REWARD_ID_SCREEN_FLIP": {
+      "name": "Зеркало экрана",
+      "effects": [{ "id": "screen_flip", "durationSec": 30, "params": { "syncInput": true } }],
+      "cooldownSec": 90
+    },
     "REWARD_ID_PARRY": {
       "name": "Парирование",
       "effects": [{ "id": "melee_parry_press" }],

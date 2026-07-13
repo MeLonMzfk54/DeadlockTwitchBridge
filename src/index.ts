@@ -5,6 +5,7 @@ import {
 } from "./config.js";
 import { createGameCommandClient } from "./game/create-game-client.js";
 import { ensureCfgBindSetup } from "./game/ensure-cfg-bind-setup.js";
+import { stopScreenFlipHelper } from "./game/screen-flip-helper.js";
 import { stopWasdInvertHook } from "./game/wasd-invert-hook.js";
 import { createEffectRegistry } from "./effects/registry.js";
 import { createHeroResolver } from "./heroes/hero-resolver.js";
@@ -160,6 +161,7 @@ async function main(): Promise<void> {
 
   const shutdown = (): void => {
     stopWasdInvertHook();
+    stopScreenFlipHelper();
     process.exit(0);
   };
   process.on("SIGINT", shutdown);

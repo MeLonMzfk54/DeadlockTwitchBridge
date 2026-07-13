@@ -139,6 +139,19 @@
       "category": "other"
     },
     {
+      "id": "screen_flip",
+      "name": "Зеркало экрана (горизонтально)",
+      "description": "Windows overlay поверх Deadlock: горизонтальное зеркало client area. syncInput (default true) инвертирует mouse X (m_yaw) и A/D. Нужен Borderless Windowed + OBS Display Capture (не Game Capture). Не стековать с mouse_invert / wasd_invert.",
+      "retailSafe": true,
+      "cfgBindSafe": true,
+      "defaultDurationSec": 30,
+      "category": "other",
+      "defaultParams": {
+        "syncInput": true,
+        "axis": "horizontal"
+      }
+    },
+    {
       "id": "melee_parry_press",
       "name": "Парирование (melee parry)",
       "description": "Прожимает кнопку парирования ближнего боя",
