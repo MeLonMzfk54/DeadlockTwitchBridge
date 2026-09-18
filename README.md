@@ -8,6 +8,7 @@
 
 ```
 Twitch (Channel Points) → EventSub WebSocket → Bridge App → GameCommandClient → Deadlock
+Deadlock (Panorama mod) → HTTP / console.log → Bridge App → /control «События игры»
 ```
 
 Два транспорта:
@@ -23,7 +24,7 @@ Twitch (Channel Points) → EventSub WebSocket → Bridge App → GameCommandCli
 |------|------------|
 | `twitch-deadlock-bridge/` | Node.js приложение (Twitch + game transport + UI) |
 | `Deadlock/content/citadel_addons/twitch_integration/` | Справочные alias-команды |
-| `Deadlock/content/citadel_addons/twitch_minimap_fx/` | Panorama addon для `minimap_spin_center` |
+| `Deadlock/content/citadel_addons/twitch_minimap_fx/` | Panorama addon: телеметрия матча (`twitch_bridge_events.js`) |
 | `Deadlock/game/citadel_addons/twitch_integration/` | Манифест addon для упаковки |
 
 ## Режимы отправки команд
@@ -86,7 +87,6 @@ bind F10 "exec twitch_bridge_effect.cfg"
 
 - Награды на **каст скиллов** (`skill1_cast`–`skill4_cast`) **отключены**
 - `minimap_spin` (VConsole setInterval), `disconnect` и другие input/destructive эффекты также недоступны в cfg-bind
-- `minimap_spin_center` работает в cfg-bind при установленном addon `twitch_minimap_fx`
 
 Статус «Игра» в `/control` означает, что bridge может записать cfg-файл в `DEADLOCK_CFG_DIR` (не TCP-подключение).
 
@@ -165,7 +165,6 @@ npm run dev
 | `roster_high_priority_set` | High priority roster | Да | Да |
 | `minimap_customize` | Миникарта: размер/центр/прозрачность | Да | Да |
 | `minimap_spin` | Миникарта крутится (VConsole setInterval) | Да | Нет |
-| `minimap_spin_center` | Миникарта крутится по центру (addon + convars) | Да | Да |
 | `skill1_cast` … `skill4_cast` | Каст скиллов 1–4 | Да | Нет |
 | `melee_parry_press` | Парирование (симуляция клавиши F) | Да | Да |
 | `disconnect` | Выход из матча | Да* | Нет |
@@ -208,11 +207,46 @@ npm run dev
 
 | URL | Назначение |
 |-----|------------|
-| `/control` | Панель стримера (статусы, тест с userInput, журнал) |
+| `/control` | Панель стримера (статусы, тест с userInput, журнал эффектов, **события игры**) |
 | `/overlay` | OBS Browser Source (тосты при активации) |
 | `POST /api/test-effect` | API теста с `userInput` |
-| `GET /api/status` | Статус подключений, `gameCommandMode`, активные эффекты |
+| `GET /api/status` | Статус подключений, `gameTelemetry`, активные эффекты |
 | `GET /api/effects` | Каталог эффектов с `cfgBindSafe` |
+| `POST /api/game-event` | Приём события от Panorama-мода (только localhost) |
+| `GET /api/game-events` | Журнал телеметрии (`?afterSeq=&limit=`), плюс `match` / `lastHeartbeat` |
+| `POST /api/game-events/clear` | Очистить журнал телеметрии (и `seenIds`) |
+
+## Телеметрия матча (мод → bridge)
+
+Обратный канал: addon `twitch_bridge_events.js` шлёт HUD/матчевые события в bridge. Twitch Predictions пока **не** подключены — только журнал и снимок матча в `/control`.
+
+Heartbeat обновляет онлайн-статус мода, но **не** попадает в кольцевой журнал (фильтр `heartbeat` показывает последний payload).
+
+**Установка**
+
+1. Собери VPK (см. `PACKAGING.md`):
+   - **один мод:** self-contained с `hud.xml` (`npm run patch-hud-xml`);
+   - **с QoLLock:** bridge VPK только со скриптами + include вшит в HUD QoLLock (`node scripts/patch-hud-xml.mjs path/to/QoLLock/hud.xml --in-place`).
+2. Установи VPK в `game/citadel/addons/`, в `gameinfo.gi` должна быть строка `Game citadel/addons`.
+3. Launch options: `-condebug` (+ `-exec autoexec` для наград cfg-bind).
+4. Опционально в `.env`:
+   ```env
+   DEADLOCK_CONSOLE_LOG=C:\...\Deadlock\game\citadel\console.log
+   DEADLOCK_GAME_DIR=C:\...\Deadlock
+   ```
+5. `npm run test` → откройте [http://127.0.0.1:3920/control](http://127.0.0.1:3920/control) → карточка **«События игры»**.
+
+**Sandbox-check**
+
+1. Зайдите в sandbox / матч.
+2. В F7 или в `/control` должны появиться `mod_loaded`, `api_probe`; точка «Мод» зелёная пока heartbeat свежий (~5 с). Снимок матча сверху карточки.
+3. Умрите / зареспауньтесь → `local_death` / `local_respawn` (с `respawnSec` если таймер читается).
+4. Killfeed (если DataFeed отдаёт детей) → `killfeed`; score / announcements — при диффе панелей.
+5. Смена фазы (hideout / pregame / in_match / match_end / shop / …) → `phase`.
+6. Dump панелей: в F7 `bridge_evt_dump 1` → `hud_dump` по HTTP (в лог — stub).
+7. Если HTTP пустой, а в логе есть `[twitch_bridge] EVENT` — смотрите `transport` = `log` и `httpOk` в heartbeat / снимке.
+
+Convar'ы: `bridge_evt_url` (URL POST), `bridge_evt_dump` (`1` = dump).
 
 ## Ручной тест через консоль игры
 
@@ -241,6 +275,14 @@ curl -X POST http://127.0.0.1:3920/api/test-effect \
 
 # Сброс всех эффектов
 curl -X POST http://127.0.0.1:3920/api/revert-all
+
+# Симуляция события мода
+curl -X POST http://127.0.0.1:3920/api/game-event \
+  -H "Content-Type: application/json" \
+  -d "{\"v\":1,\"id\":\"manual-1\",\"tsMs\":0,\"type\":\"heartbeat\",\"payload\":{\"phase\":\"sandbox\"}}"
+
+# Журнал телеметрии
+curl http://127.0.0.1:3920/api/game-events
 ```
 
 ## Конфигурация convar mapping
@@ -248,7 +290,6 @@ curl -X POST http://127.0.0.1:3920/api/revert-all
 | Файл | Назначение |
 |------|------------|
 | `config/minimap-convars.json` | Convar'ы миникарты (scale, center, opacity, rotation). Поля `null` — заполнить после `find minimap` в F7 |
-| `config/minimap-fx-convars.json` | Convar'ы для `minimap_spin_center` → addon `twitch_minimap_fx` |
 | `config/input-binds.json` | Клавиша парирования для `melee_parry_press` и клавиши движения для `wasd_invert` / `screen_flip` syncInput (A/D) |
 | `config/input-convars.json` | Convar'ы инверсии мыши для `mouse_invert` и mouse X для `screen_flip` syncInput (`m_yaw`) |
 
@@ -260,7 +301,7 @@ curl -X POST http://127.0.0.1:3920/api/revert-all
 - **`disconnect`** — необратимый эффект. Может вызвать abandon-штраф. По умолчанию заблокирован для Twitch (`ALLOW_DESTRUCTIVE_EFFECTS=false`); в `/control` требует подтверждение
 - `roster_high_priority_set` парсит `userInput` через `heroes.tsv` + `hero_aliases.json`
 - `minimap_spin` требует настроенный `rotation` convar в `minimap-convars.json` (проверьте в F7: `find minimap`)
-- `minimap_spin_center` требует установленный addon `twitch_minimap_fx` (см. `Deadlock/content/citadel_addons/twitch_minimap_fx/PACKAGING.md`; после обновления игры: `npm run patch-hud-xml`)
+- Телеметрия матча требует include `twitch_bridge_events.js` в рабочем HUD; для хвоста лога — launch option `-condebug`
 - `melee_parry_press` симулирует нажатие клавиши из `input-binds.json` (по умолчанию **F**); Deadlock должен быть запущен
 - `screen_flip` требует Windows, запущенный Deadlock в Borderless Windowed, OBS Display Capture; см. секцию выше
 
@@ -281,6 +322,8 @@ twitch-deadlock-bridge/
 └── src/
     ├── game/
     │   ├── game-command-client.ts
+    │   ├── game-event-bus.ts
+    │   ├── console-log-tail.ts
     │   ├── vconsole.ts
     │   ├── cfg-bind-client.ts
     │   └── create-game-client.ts

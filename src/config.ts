@@ -50,6 +50,8 @@ export function loadAppConfig(): AppConfig {
     cfgBindCommandDelayMs: envInt("CFG_BIND_COMMAND_DELAY_MS", 75),
     deadlockWindowTitle: process.env.DEADLOCK_WINDOW_TITLE ?? "",
     deadlockProcessName: process.env.DEADLOCK_PROCESS_NAME ?? "deadlock",
+    deadlockGameDir: process.env.DEADLOCK_GAME_DIR ?? "",
+    deadlockConsoleLog: process.env.DEADLOCK_CONSOLE_LOG ?? "",
     vconsoleHost: process.env.VCONSOLE_HOST ?? "127.0.0.1",
     vconsolePort: envInt("VCONSOLE_PORT", 29000),
     vconsoleReconnectMs: envInt("VCONSOLE_RECONNECT_MS", 5000),

@@ -52,6 +52,7 @@
       display: flex;
       justify-content: space-between;
       margin: 8px 0;
+      gap: 12px;
     }
     .dot {
       width: 10px;
@@ -76,11 +77,30 @@
     button:hover { background: #2f4058; }
     button.primary { background: #1f5f3f; border-color: #2f8f5d; }
     button.danger { background: #5a2323; border-color: #8f3f3f; }
+    button.filter {
+      width: auto;
+      margin: 0;
+      padding: 6px 10px;
+      font-size: 0.85rem;
+    }
+    button.filter.active {
+      background: #1f5f3f;
+      border-color: #2f8f5d;
+    }
+    .filter-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 12px 0;
+    }
     .effect-list { display: grid; gap: 8px; }
     .events {
       max-height: 280px;
       overflow-y: auto;
       font-size: 0.9rem;
+    }
+    .events.tall {
+      max-height: 360px;
     }
     .event {
       padding: 8px 0;
@@ -88,6 +108,27 @@
       color: var(--muted);
     }
     .event strong { color: var(--text); }
+    .event .type-tag {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: #243247;
+      color: var(--accent);
+      font-size: 0.8rem;
+      margin-right: 6px;
+    }
+    .event .transport {
+      color: var(--warn);
+      font-size: 0.75rem;
+    }
+    .event .payload {
+      display: block;
+      margin-top: 4px;
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 0.8rem;
+      word-break: break-word;
+      color: var(--muted);
+    }
     .active-item {
       padding: 8px;
       background: #121a26;
@@ -129,6 +170,39 @@
       color: var(--muted);
       margin-top: 4px;
     }
+    .muted { color: var(--muted); font-size: 0.85rem; }
+    .match-box {
+      background: #121a26;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin: 12px 0;
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+    .match-box .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 2px 0;
+    }
+    .match-box .label { color: var(--muted); }
+    .event {
+      cursor: pointer;
+    }
+    .event.expanded .payload-full {
+      display: block;
+      margin-top: 6px;
+      white-space: pre-wrap;
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 0.78rem;
+      color: var(--text);
+      background: #0d121a;
+      padding: 8px;
+      border-radius: 6px;
+      max-height: 240px;
+      overflow: auto;
+    }
+    .payload-full { display: none; }
   </style>
 </head>
 <body>
@@ -140,7 +214,7 @@
       <div class="card">
         <h2>Статус</h2>
         <div class="status-row">
-          <span><span class="dot" id="gameDot"></span>Игра (VConsole)</span>
+          <span><span class="dot" id="gameDot"></span>Игра</span>
           <span id="gameStatus">...</span>
         </div>
         <div class="status-row">
@@ -165,6 +239,45 @@
     </div>
 
     <div class="card" style="margin-top:16px">
+      <h2>События игры</h2>
+      <div class="status-row">
+        <span><span class="dot" id="modDot"></span>Мод (телеметрия)</span>
+        <span id="modStatus">оффлайн</span>
+      </div>
+      <div class="status-row">
+        <span>Транспорт</span>
+        <span id="modTransport">—</span>
+      </div>
+      <div class="status-row">
+        <span>Последний тип</span>
+        <span id="modLastType">—</span>
+      </div>
+      <div class="status-row">
+        <span>console.log</span>
+        <span id="modLogPath" class="muted">—</span>
+      </div>
+      <div class="match-box" id="matchSnapshot">
+        <div class="row"><span class="label">Фаза</span><span id="matchPhase">—</span></div>
+        <div class="row"><span class="label">Жизнь</span><span id="matchLife">—</span></div>
+        <div class="row"><span class="label">Часы / счёт</span><span id="matchScore">—</span></div>
+        <div class="row"><span class="label">Последний килл</span><span id="matchLastKill">—</span></div>
+        <div class="row"><span class="label">HTTP / панели</span><span id="matchPanels">—</span></div>
+      </div>
+      <div class="filter-row" id="gameEventFilters">
+        <button class="filter active" data-filter="all" onclick="setGameFilter('all')">all</button>
+        <button class="filter" data-filter="phase" onclick="setGameFilter('phase')">phase</button>
+        <button class="filter" data-filter="killfeed" onclick="setGameFilter('killfeed')">killfeed</button>
+        <button class="filter" data-filter="death" onclick="setGameFilter('death')">death</button>
+        <button class="filter" data-filter="score" onclick="setGameFilter('score')">score</button>
+        <button class="filter" data-filter="announcement" onclick="setGameFilter('announcement')">announcement</button>
+        <button class="filter" data-filter="raw" onclick="setGameFilter('raw')">raw</button>
+        <button class="filter" data-filter="heartbeat" onclick="setGameFilter('heartbeat')">heartbeat</button>
+      </div>
+      <button class="danger" style="width:auto;margin:0 0 8px" onclick="clearGameEvents()">Очистить</button>
+      <div class="events tall" id="gameEvents"><div class="event">Ожидание событий от мода…</div></div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
       <h2>Тест эффектов (без Twitch)</h2>
       <div class="input-row">
         <label for="userInput">Текст награды (userInput)</label>
@@ -174,17 +287,25 @@
     </div>
 
     <div class="card" style="margin-top:16px">
-      <h2>Журнал событий</h2>
+      <h2>Журнал эффектов / Channel Points</h2>
       <div class="events" id="events"></div>
     </div>
 
     <div class="hint">
-      Для внутриигрового окна: откройте этот URL в браузере, закрепите поверх всех окон (Always on Top через PowerToys или отдельный браузер).
+      Для телеметрии: установите addon и добавьте include <code>twitch_bridge_events.js</code> в рабочий HUD (без полного override), launch option <code>-condebug</code>,
+      откройте sandbox и смотрите карточку «События игры». HTTP: <code>POST /api/game-event</code>.
       Для OBS используйте <a href="/overlay" style="color:var(--accent)">/overlay</a>.
     </div>
   </div>
 
   <script>
+    let gameFilter = "all";
+    let lastGameEventSeq = 0;
+    let gameEventCache = [];
+    let expandedEventId = null;
+    let lastMatch = null;
+    let lastHeartbeatPayload = null;
+
     async function api(path, options) {
       const res = await fetch(path, options);
       if (!res.ok) {
@@ -199,6 +320,147 @@
       el.className = "dot " + (on ? "on" : "off");
     }
 
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function shortPayload(payload) {
+      try {
+        const s = JSON.stringify(payload ?? {});
+        return s.length > 180 ? s.slice(0, 180) + "…" : s;
+      } catch {
+        return "{}";
+      }
+    }
+
+    function matchesFilter(evt) {
+      if (gameFilter === "all") {
+        return evt.type !== "heartbeat";
+      }
+      if (gameFilter === "death") {
+        return evt.type === "local_death" || evt.type === "local_respawn";
+      }
+      return evt.type === gameFilter;
+    }
+
+    function renderMatchSnapshot(match, heartbeat) {
+      const m = match || {};
+      const hb = heartbeat || {};
+      document.getElementById("matchPhase").textContent = m.phase || "—";
+      let life = "—";
+      if (typeof m.dead === "boolean") {
+        if (m.dead) {
+          life = m.respawnSec != null ? `мертв · respawn ${m.respawnSec}s` : "мертв";
+        } else {
+          life = "жив";
+        }
+      }
+      document.getElementById("matchLife").textContent = life;
+      const scoreParts = [];
+      if (m.clock) scoreParts.push(m.clock);
+      if (m.friendlyKills != null || m.enemyKills != null) {
+        scoreParts.push(`${m.friendlyKills ?? "?"}–${m.enemyKills ?? "?"}`);
+      }
+      document.getElementById("matchScore").textContent = scoreParts.join(" · ") || "—";
+      document.getElementById("matchLastKill").textContent = m.lastKill || "—";
+      const panels = m.panelsFound || {};
+      const httpOk = m.httpOk != null ? m.httpOk : hb.httpOk;
+      const httpLabel = httpOk === true ? "http✓" : httpOk === false ? "http✗" : "http?";
+      const panelBits = [
+        panels.dataFeed === true ? "DataFeed✓" : panels.dataFeed === false ? "DataFeed✗" : "DataFeed?",
+        panels.announcements === true ? "Ann✓" : panels.announcements === false ? "Ann✗" : "Ann?",
+        panels.gameEvents === true ? "GE✓" : panels.gameEvents === false ? "GE✗" : "GE?",
+      ];
+      document.getElementById("matchPanels").textContent = httpLabel + " · " + panelBits.join(" ");
+    }
+
+    function toggleEventExpand(id) {
+      expandedEventId = expandedEventId === id ? null : id;
+      renderGameEvents();
+    }
+
+    function renderGameEvents() {
+      const el = document.getElementById("gameEvents");
+      if (gameFilter === "heartbeat") {
+        if (!lastHeartbeatPayload) {
+          el.innerHTML = "<div class='event'>Нет heartbeat (мод оффлайн или ещё не прислал)</div>";
+          return;
+        }
+        const full = escapeHtml(JSON.stringify(lastHeartbeatPayload, null, 2));
+        el.innerHTML = `<div class="event expanded">
+          <strong>last heartbeat</strong>
+          <span class="type-tag">heartbeat</span>
+          <span class="payload">${escapeHtml(shortPayload(lastHeartbeatPayload))}</span>
+          <div class="payload-full" style="display:block">${full}</div>
+        </div>`;
+        return;
+      }
+
+      const list = gameEventCache.filter(matchesFilter).slice(0, 100);
+      if (!list.length) {
+        el.innerHTML = "<div class='event'>Нет событий" + (gameFilter !== "all" ? " по фильтру" : "") + "</div>";
+        return;
+      }
+      el.innerHTML = list.map((e) => {
+        const time = new Date(e.receivedAt || e.tsMs).toLocaleTimeString();
+        const expanded = expandedEventId === e.id;
+        const full = escapeHtml(JSON.stringify(e.payload ?? {}, null, 2));
+        return `<div class="event${expanded ? " expanded" : ""}" onclick="toggleEventExpand('${escapeHtml(e.id)}')">
+          <strong>[${escapeHtml(time)}]</strong>
+          <span class="type-tag">${escapeHtml(e.type)}</span>
+          <span class="transport">${escapeHtml(e.transport || "?")}</span>
+          <span class="payload">${escapeHtml(shortPayload(e.payload))}</span>
+          <div class="payload-full">${full}</div>
+        </div>`;
+      }).join("");
+    }
+
+    function setGameFilter(filter) {
+      gameFilter = filter;
+      document.querySelectorAll("#gameEventFilters .filter").forEach((btn) => {
+        btn.classList.toggle("active", btn.getAttribute("data-filter") === filter);
+      });
+      renderGameEvents();
+    }
+
+    async function refreshGameEvents() {
+      const data = await api("/api/game-events?limit=100&afterSeq=" + lastGameEventSeq);
+      const incoming = data.events || [];
+      if (incoming.length) {
+        const byId = new Map(gameEventCache.map((e) => [e.id, e]));
+        for (const e of incoming) byId.set(e.id, e);
+        gameEventCache = [...byId.values()].sort((a, b) => (b.seq || 0) - (a.seq || 0) || (b.receivedAt || 0) - (a.receivedAt || 0));
+        lastGameEventSeq = Math.max(lastGameEventSeq, ...incoming.map((e) => e.seq || 0));
+      }
+
+      if (data.match) {
+        lastMatch = data.match;
+      }
+      if (data.lastHeartbeat) {
+        lastHeartbeatPayload = data.lastHeartbeat;
+      }
+      renderMatchSnapshot(lastMatch, lastHeartbeatPayload);
+
+      const modOnline = Boolean(data.modLastSeenAt && (Date.now() - data.modLastSeenAt < 8000));
+      setDot("modDot", modOnline || (gameEventCache.some((e) => Date.now() - (e.receivedAt || 0) < 8000)));
+      renderGameEvents();
+    }
+
+    async function clearGameEvents() {
+      await api("/api/game-events/clear", { method: "POST" });
+      gameEventCache = [];
+      lastGameEventSeq = 0;
+      expandedEventId = null;
+      lastMatch = null;
+      lastHeartbeatPayload = null;
+      renderMatchSnapshot(null, null);
+      renderGameEvents();
+    }
+
     async function refreshStatus() {
       const status = await api("/api/status");
       setDot("gameDot", status.gameConnected);
@@ -207,6 +469,21 @@
       document.getElementById("twitchStatus").textContent = status.twitchConnected ? "Подключено" : (status.testMode ? "Test mode" : "Нет соединения");
       document.getElementById("modeStatus").textContent = status.testMode ? "Тест" : "Twitch";
       document.getElementById("queueStatus").textContent = status.queueLength;
+
+      const tel = status.gameTelemetry || {};
+      setDot("modDot", Boolean(tel.modOnline));
+      document.getElementById("modStatus").textContent = tel.modOnline ? "онлайн" : "оффлайн";
+      document.getElementById("modTransport").textContent = tel.lastTransport || "—";
+      document.getElementById("modLastType").textContent = tel.lastEventType || "—";
+      const logLabel = tel.consoleLogTailing && tel.consoleLogPath
+        ? tel.consoleLogPath
+        : (tel.consoleLogPath || "не найден (−condebug / DEADLOCK_CONSOLE_LOG)");
+      document.getElementById("modLogPath").textContent = logLabel;
+      document.getElementById("modLogPath").title = logLabel;
+
+      if (tel.match) lastMatch = tel.match;
+      if (tel.lastHeartbeat) lastHeartbeatPayload = tel.lastHeartbeat;
+      renderMatchSnapshot(lastMatch, lastHeartbeatPayload);
 
       const active = document.getElementById("activeEffects");
       if (!status.activeEffects.length) {
@@ -221,7 +498,7 @@
       const events = document.getElementById("events");
       events.innerHTML = status.recentEvents.slice(0, 20).map((e) => {
         const time = new Date(e.timestamp).toLocaleTimeString();
-        return `<div class="event"><strong>[${time}]</strong> ${e.message}</div>`;
+        return `<div class="event"><strong>[${time}]</strong> ${escapeHtml(e.message)}</div>`;
       }).join("") || "<div class='event'>Пока нет событий</div>";
     }
 
@@ -231,13 +508,13 @@
       container.innerHTML = effects.map((e) => {
         const btnClass = e.destructive ? "destructive" : "primary";
         const hint = e.requiresUserInput && e.userInputHint
-          ? `<div class="effect-hint">${e.userInputHint}</div>`
+          ? `<div class="effect-hint">${escapeHtml(e.userInputHint)}</div>`
           : e.destructive
             ? `<div class="effect-hint">Опасно: выход из матча, возможен штраф</div>`
             : "";
         return `
           <button class="${btnClass}" onclick="testEffect('${e.id}', ${e.defaultDurationSec}, ${e.destructive}, ${e.requiresUserInput})">
-            ${e.name} (${e.defaultDurationSec}s)
+            ${escapeHtml(e.name)} (${e.defaultDurationSec}s)
           </button>
           ${hint}
         `;
@@ -278,7 +555,9 @@
 
     loadEffects();
     refreshStatus();
+    refreshGameEvents();
     setInterval(refreshStatus, 2000);
+    setInterval(refreshGameEvents, 750);
   </script>
 </body>
 </html>

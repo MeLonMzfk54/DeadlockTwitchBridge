@@ -10,7 +10,7 @@
     "dev": "tsx src/index.ts",
     "test": "tsx src/index.ts --test-mode",
     "patch-hud-xml": "node scripts/patch-hud-xml.mjs",
-    "test:minimap-spin-center": "node scripts/test-minimap-spin-center.mjs"
+    "patch-top-bar-xml": "node scripts/patch-top-bar-xml.mjs"
   },
   "engines": {
     "node": ">=18"

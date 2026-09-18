@@ -7,6 +7,11 @@ import { createGameCommandClient } from "./game/create-game-client.js";
 import { ensureCfgBindSetup } from "./game/ensure-cfg-bind-setup.js";
 import { stopScreenFlipHelper } from "./game/screen-flip-helper.js";
 import { stopWasdInvertHook } from "./game/wasd-invert-hook.js";
+import { GameEventBus } from "./game/game-event-bus.js";
+import {
+  ConsoleLogTail,
+  resolveConsoleLogPath,
+} from "./game/console-log-tail.js";
 import { createEffectRegistry } from "./effects/registry.js";
 import { createHeroResolver } from "./heroes/hero-resolver.js";
 import { EffectManager } from "./queue/effect-manager.js";
@@ -16,12 +21,16 @@ import { printTestModeHelp } from "./test/test-mode.js";
 import type { BridgeStatus } from "./types.js";
 import { join } from "node:path";
 
+const MOD_ONLINE_MS = 8_000;
+
 async function main(): Promise<void> {
   const config = loadAppConfig();
   const rewards = loadRewardsConfig();
   const catalog = loadEffectsCatalog();
   const heroResolver = createHeroResolver();
   const effects = createEffectRegistry(catalog, heroResolver);
+  const gameEventBus = new GameEventBus();
+  const consoleTail = new ConsoleLogTail();
 
   if (config.gameCommandMode === "cfg-bind") {
     const setup = ensureCfgBindSetup({
@@ -54,16 +63,37 @@ async function main(): Promise<void> {
     config.maxQueueSize,
   );
 
-  const getStatus = (): BridgeStatus => ({
-    twitchConnected,
-    gameConnected,
-    gameProcessRunning: gameClient.gameProcessRunning ?? false,
-    gameCommandMode: config.gameCommandMode,
-    testMode: config.testMode,
-    activeEffects: effectManager.getActiveEffects(),
-    queueLength: effectManager.getQueueLength(),
-    recentEvents: effectManager.getRecentEvents(),
-  });
+  const consoleLogPath = resolveConsoleLogPath(
+    config.deadlockConsoleLog,
+    config.deadlockCfgDir,
+    config.deadlockGameDir,
+  );
+
+  const getStatus = (): BridgeStatus => {
+    const mod = gameEventBus.getModStatus();
+    const modOnline = mod.modLastSeenAt > 0 && Date.now() - mod.modLastSeenAt < MOD_ONLINE_MS;
+    return {
+      twitchConnected,
+      gameConnected,
+      gameProcessRunning: gameClient.gameProcessRunning ?? false,
+      gameCommandMode: config.gameCommandMode,
+      testMode: config.testMode,
+      activeEffects: effectManager.getActiveEffects(),
+      queueLength: effectManager.getQueueLength(),
+      recentEvents: effectManager.getRecentEvents(),
+      gameTelemetry: {
+        modOnline,
+        modLastSeenAt: mod.modLastSeenAt,
+        lastTransport: mod.lastTransport,
+        lastEventType: mod.lastEventType,
+        eventCount: mod.eventCount,
+        consoleLogPath: consoleTail.activePath,
+        consoleLogTailing: Boolean(consoleTail.activePath),
+        lastHeartbeat: mod.lastHeartbeat,
+        match: mod.match,
+      },
+    };
+  };
 
   gameClient.on("connected", () => {
     gameConnected = true;
@@ -91,10 +121,43 @@ async function main(): Promise<void> {
 
   gameClient.start();
 
+  consoleTail.on("event", (evt) => {
+    gameEventBus.ingest(evt, "log");
+  });
+  consoleTail.on("started", (path) => {
+    console.log(`[game-events] Tailing console.log: ${path}`);
+  });
+  consoleTail.on("error", (error) => {
+    console.warn("[game-events] console.log tail error:", error.message);
+  });
+
+  function tryStartConsoleTail(): boolean {
+    if (consoleTail.activePath) return true;
+    const path = resolveConsoleLogPath(
+      config.deadlockConsoleLog,
+      config.deadlockCfgDir,
+      config.deadlockGameDir,
+    );
+    if (!path) return false;
+    return consoleTail.start(path);
+  }
+
+  if (consoleLogPath) {
+    consoleTail.start(consoleLogPath);
+  } else {
+    console.log(
+      "[game-events] console.log not found yet. HTTP ingest still works. Will retry. Set DEADLOCK_CONSOLE_LOG or launch Deadlock with -condebug.",
+    );
+    const retry = setInterval(() => {
+      if (tryStartConsoleTail()) clearInterval(retry);
+    }, 15_000);
+  }
+
   startHttpServer(config.httpHost, config.httpPort, {
     effectManager,
     effects,
     getStatus,
+    gameEventBus,
   });
 
   if (config.testMode) {
@@ -160,6 +223,7 @@ async function main(): Promise<void> {
   console.log(`Open control panel: http://${config.httpHost}:${config.httpPort}/control`);
 
   const shutdown = (): void => {
+    consoleTail.stop();
     stopWasdInvertHook();
     stopScreenFlipHelper();
     process.exit(0);

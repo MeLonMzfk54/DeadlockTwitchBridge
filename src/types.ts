@@ -14,6 +14,8 @@ export interface AppConfig {
   cfgBindCommandDelayMs: number;
   deadlockWindowTitle: string;
   deadlockProcessName: string;
+  deadlockGameDir: string;
+  deadlockConsoleLog: string;
   vconsoleHost: string;
   vconsolePort: number;
   vconsoleReconnectMs: number;
@@ -87,7 +89,55 @@ export interface BridgeStatus {
   activeEffects: ActiveEffectState[];
   queueLength: number;
   recentEvents: BridgeEvent[];
+  gameTelemetry: GameTelemetryStatus;
 }
+
+export type GameEventTransport = "http" | "log";
+
+export interface IncomingGameEvent {
+  v: number;
+  id: string;
+  tsMs: number;
+  type: string;
+  payload: Record<string, unknown>;
+}
+
+export interface StoredGameEvent extends IncomingGameEvent {
+  seq: number;
+  receivedAt: number;
+  transport: GameEventTransport;
+}
+
+export interface MatchSnapshot {
+  phase: string;
+  dead: boolean;
+  respawnSec: number | null;
+  clock: string;
+  friendlyKills: number | null;
+  enemyKills: number | null;
+  lastKill: string;
+  httpOk: boolean | null;
+  panelsFound: {
+    dataFeed: boolean | null;
+    announcements: boolean | null;
+    gameEvents: boolean | null;
+  };
+  updatedAt: number;
+}
+
+export interface GameTelemetryStatus {
+  modOnline: boolean;
+  modLastSeenAt: number;
+  lastTransport: GameEventTransport | null;
+  lastEventType: string;
+  eventCount: number;
+  consoleLogPath: string | null;
+  consoleLogTailing: boolean;
+  lastHeartbeat: Record<string, unknown> | null;
+  match: MatchSnapshot;
+}
+
+export type EffectActivationSource = "twitch" | "test-ui" | "manual";
 
 export interface TwitchRedemption {
   id: string;
@@ -104,5 +154,3 @@ export interface TwitchRedemption {
   };
   redeemedAt: string;
 }
-
-export type EffectActivationSource = "twitch" | "test-ui" | "manual";
