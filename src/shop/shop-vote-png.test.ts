@@ -69,6 +69,12 @@ function fakeSnap(partial: Partial<ShopVoteSnapshot>): ShopVoteSnapshot {
       applyDelayMs: 0,
       mockBotIntervalMs: 900,
       overlayHoldMs: 8_000,
+      allowHudStart: true,
+      hudCanRestart: true,
+      chatAnnounceEnabled: true,
+      chatAnnounceCategory: "",
+      chatAnnounceTier: "",
+      chatAnnounceCombined: "",
     },
     ...partial,
   };
@@ -186,6 +192,19 @@ test("levelsForSlot zeros percents outside matching vote stage", () => {
   assert.deepEqual(levelsForSlot(catVote, "cats"), { w: 50, h: 25 });
   assert.deepEqual(levelsForSlot(catVote, "t12"), { w: 0, h: 0 });
   assert.deepEqual(levelsForSlot(catVote, "t34"), { w: 0, h: 0 });
+
+  const combined = fakeSnap({
+    stage: "voting_combined",
+    categoryPct: { weapon: 50, vitality: 25, spirit: 25 },
+    tierPct: { "1": 10, "2": 20, "3": 30, "4": 40 },
+    stageEndsAt: Date.now() + 4500,
+  });
+  assert.deepEqual(levelsForSlot(combined, "cats"), { w: 50, h: 25 });
+  assert.deepEqual(levelsForSlot(combined, "t12"), { w: 10, h: 20 });
+  assert.deepEqual(levelsForSlot(combined, "t34"), { w: 30, h: 40 });
+  assert.equal(levelsForSlot(combined, "meta").w, stageToLevel("voting_combined"));
+  assert.equal(stageToLevel("voting_combined"), 8);
+  assert.equal(levelToStage(8), "voting_combined");
 });
 
 test("hud slot PNG encodes levels as pixel size", () => {
@@ -220,9 +239,9 @@ test("meta slot encodes winner code after voting", () => {
   });
   const png = getHudSlotPng(snap, "meta");
   const size = readPngSize(png);
-  assert.equal(size.width, encodeLevel(stageToLevel("applying"), 7));
+  assert.equal(size.width, encodeLevel(stageToLevel("applying"), 8));
   assert.equal(size.height, encodeLevel(encodeWinnerCode("spirit", 4), 60));
-  assert.equal(levelToStage(decodeLevel(size.width, 1, 7)), "applying");
+  assert.equal(levelToStage(decodeLevel(size.width, 1, 8)), "applying");
   const decoded = decodeWinnerCode(decodeLevel(size.height, 1, 60));
   assert.deepEqual(decoded, { category: "spirit", tier: 4 });
 });

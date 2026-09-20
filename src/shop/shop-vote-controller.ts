@@ -14,11 +14,17 @@ export type ShopVoteStage =
   | "idle"
   | "voting_category"
   | "voting_tier"
+  | "voting_combined"
   | "applying"
   | "rolled"
   | "waiting_shop"
   | "purchased"
   | "failed";
+
+/** Stages where chat/control may cast votes. */
+export function isShopVotingStage(stage: ShopVoteStage | string): boolean {
+  return stage === "voting_category" || stage === "voting_tier" || stage === "voting_combined";
+}
 
 export type ShopCategory = "weapon" | "vitality" | "spirit";
 export type ShopTier = 1 | 2 | 3 | 4;
@@ -214,7 +220,12 @@ function pickWeightedWinner<T extends string>(tally: Record<T, number>, options:
 export class ShopVoteController extends EventEmitter<{
   update: [ShopVoteSnapshot];
   /** Fired when a real voting stage begins (not when skipped for a single option). */
-  vote_stage_start: [{ stage: "voting_category" | "voting_tier"; snapshot: ShopVoteSnapshot }];
+  vote_stage_start: [
+    {
+      stage: "voting_category" | "voting_tier" | "voting_combined";
+      snapshot: ShopVoteSnapshot;
+    },
+  ];
 }> {
   private stage: ShopVoteStage = "idle";
   private shopOpen = false;
@@ -312,9 +323,8 @@ export class ShopVoteController extends EventEmitter<{
       this.scheduleAutoRestart();
     }
 
-    const voting = this.stage === "voting_category" || this.stage === "voting_tier";
     if (
-      voting &&
+      isShopVotingStage(this.stage) &&
       (this.settings.mockBotEnabled !== prevMock ||
         this.settings.mockBotIntervalMs !== prevInterval)
     ) {
@@ -464,10 +474,15 @@ export class ShopVoteController extends EventEmitter<{
         this.winnerCategory = this.enabledCategories()[0] ?? "weapon";
       }
       this.beginTierVote();
-    } else {
+    } else if (mode === "category") {
       this.winnerCategory = null;
       this.winnerTier = null;
       this.beginCategoryVote();
+    } else {
+      // full: one window for category + tier in parallel
+      this.winnerCategory = null;
+      this.winnerTier = null;
+      this.beginCombinedVote();
     }
     return this.getSnapshot();
   }
@@ -514,53 +529,78 @@ export class ShopVoteController extends EventEmitter<{
     }
     const normalized = option.trim().toLowerCase();
     const uid = typeof userId === "string" ? userId.trim() : "";
-    if (this.stage === "voting_category") {
+
+    if (this.stage === "voting_category" || this.stage === "voting_combined") {
       if (normalized === "weapon" || normalized === "vitality" || normalized === "spirit") {
-        if (!this.isCategoryEnabled(normalized)) {
+        if (this.stage === "voting_combined" && this.enabledCategories().length <= 1) {
           return this.getSnapshot();
         }
-        if (uid) {
-          const prev = this.categoryVotes.get(uid);
-          if (prev === normalized) {
-            return this.getSnapshot();
-          }
-          if (prev) {
-            this.categoryTally[prev] = Math.max(0, this.categoryTally[prev] - 1);
-          }
-          this.categoryVotes.set(uid, normalized);
-        }
-        this.categoryTally[normalized] += 1;
-        this.recordRecentVote(normalized, uid || null);
-        this.push(`vote ${normalized}=${this.categoryTally[normalized]}`);
-        this.emitUpdate();
-        return this.getSnapshot();
+        return this.castCategory(normalized, uid);
       }
-      throw new Error(`Invalid category option: ${option}`);
+      if (this.stage === "voting_category") {
+        throw new Error(`Invalid category option: ${option}`);
+      }
+      // voting_combined: fall through to try tier
     }
-    if (this.stage === "voting_tier") {
+
+    if (this.stage === "voting_tier" || this.stage === "voting_combined") {
       if (normalized === "1" || normalized === "2" || normalized === "3" || normalized === "4") {
-        if (!this.isTierEnabled(normalized)) {
+        if (this.stage === "voting_combined" && this.enabledTiers().length <= 1) {
           return this.getSnapshot();
         }
-        if (uid) {
-          const prev = this.tierVotes.get(uid);
-          if (prev === normalized) {
-            return this.getSnapshot();
-          }
-          if (prev) {
-            this.tierTally[prev] = Math.max(0, this.tierTally[prev] - 1);
-          }
-          this.tierVotes.set(uid, normalized);
-        }
-        this.tierTally[normalized] += 1;
-        this.recordRecentVote(normalized, uid || null);
-        this.push(`vote T${normalized}=${this.tierTally[normalized]}`);
-        this.emitUpdate();
-        return this.getSnapshot();
+        return this.castTier(normalized, uid);
       }
-      throw new Error(`Invalid tier option: ${option}`);
+      if (this.stage === "voting_tier") {
+        throw new Error(`Invalid tier option: ${option}`);
+      }
+    }
+
+    if (this.stage === "voting_combined") {
+      throw new Error(`Invalid combined option: ${option}`);
     }
     throw new Error(`Cannot cast vote in stage: ${this.stage}`);
+  }
+
+  private castCategory(normalized: ShopCategory, uid: string): ShopVoteSnapshot {
+    if (!this.isCategoryEnabled(normalized)) {
+      return this.getSnapshot();
+    }
+    if (uid) {
+      const prev = this.categoryVotes.get(uid);
+      if (prev === normalized) {
+        return this.getSnapshot();
+      }
+      if (prev) {
+        this.categoryTally[prev] = Math.max(0, this.categoryTally[prev] - 1);
+      }
+      this.categoryVotes.set(uid, normalized);
+    }
+    this.categoryTally[normalized] += 1;
+    this.recordRecentVote(normalized, uid || null);
+    this.push(`vote ${normalized}=${this.categoryTally[normalized]}`);
+    this.emitUpdate();
+    return this.getSnapshot();
+  }
+
+  private castTier(normalized: "1" | "2" | "3" | "4", uid: string): ShopVoteSnapshot {
+    if (!this.isTierEnabled(normalized)) {
+      return this.getSnapshot();
+    }
+    if (uid) {
+      const prev = this.tierVotes.get(uid);
+      if (prev === normalized) {
+        return this.getSnapshot();
+      }
+      if (prev) {
+        this.tierTally[prev] = Math.max(0, this.tierTally[prev] - 1);
+      }
+      this.tierVotes.set(uid, normalized);
+    }
+    this.tierTally[normalized] += 1;
+    this.recordRecentVote(normalized, uid || null);
+    this.push(`vote T${normalized}=${this.tierTally[normalized]}`);
+    this.emitUpdate();
+    return this.getSnapshot();
   }
 
   async apply(category: ShopCategory, tier: ShopTier): Promise<ShopVoteSnapshot> {
@@ -588,8 +628,7 @@ export class ShopVoteController extends EventEmitter<{
       this.emitUpdate();
       return;
     }
-    const voting = this.stage === "voting_category" || this.stage === "voting_tier";
-    if (voting && !this.settings.hudCanRestart) {
+    if (isShopVotingStage(this.stage) && !this.settings.hudCanRestart) {
       this.push("ignored shop_vote_start (hudCanRestart=false, vote active)");
       this.emitUpdate();
       return;
@@ -615,6 +654,59 @@ export class ShopVoteController extends EventEmitter<{
     void this.skip();
   }
 
+  /** Parallel category + tier vote (start mode `full`). Uses categoryDurationMs. */
+  private beginCombinedVote(): void {
+    this.categoryVotes.clear();
+    this.tierVotes.clear();
+    this.categoryTally = emptyCategoryTally();
+    this.tierTally = emptyTierTally();
+
+    const cats = this.enabledCategories();
+    const tiers = this.enabledTiers();
+
+    if (cats.length <= 1) {
+      this.winnerCategory = cats[0] ?? "weapon";
+      this.push(`skip category axis (only ${this.winnerCategory})`);
+    } else {
+      this.winnerCategory = null;
+    }
+    if (tiers.length <= 1) {
+      this.winnerTier = tiers[0] ?? 1;
+      this.push(`skip tier axis (only T${this.winnerTier})`);
+    } else {
+      this.winnerTier = null;
+    }
+
+    if (cats.length <= 1 && tiers.length <= 1) {
+      void this.scheduleApply(this.winnerCategory!, this.winnerTier!);
+      return;
+    }
+
+    // Only one axis contested → reuse single-stage flow for HUD/announce clarity.
+    if (cats.length <= 1) {
+      this.beginTierVote();
+      return;
+    }
+    if (tiers.length <= 1) {
+      this.beginCategoryVote();
+      return;
+    }
+
+    this.setStage("voting_combined");
+    this.stageStartedAt = Date.now();
+    this.stageEndsAt = Date.now() + this.categoryDurationMs;
+    this.push("voting combined (category + tier)");
+    this.startMockBot();
+    this.stageTimer = setTimeout(() => {
+      void this.finishCombinedVote();
+    }, this.categoryDurationMs);
+    this.emitUpdate();
+    this.emit("vote_stage_start", {
+      stage: "voting_combined",
+      snapshot: this.getSnapshot(),
+    });
+  }
+
   private beginCategoryVote(): void {
     this.categoryVotes.clear();
     this.tierVotes.clear();
@@ -629,6 +721,11 @@ export class ShopVoteController extends EventEmitter<{
         this.setStage("idle");
         this.stageEndsAt = null;
         this.emitUpdate();
+        return;
+      }
+      // full path with locked tier already set, or legacy → apply / tier
+      if (this.runMode === "full" && this.winnerTier != null) {
+        void this.scheduleApply(this.winnerCategory, this.winnerTier);
         return;
       }
       this.beginTierVote();
@@ -698,6 +795,11 @@ export class ShopVoteController extends EventEmitter<{
       this.emitUpdate();
       return;
     }
+    // full with pre-locked single tier (from beginCombinedVote skip path)
+    if (this.runMode === "full" && this.winnerTier != null && this.enabledTiers().length <= 1) {
+      await this.scheduleApply(this.winnerCategory, this.winnerTier);
+      return;
+    }
     this.beginTierVote();
   }
 
@@ -712,6 +814,23 @@ export class ShopVoteController extends EventEmitter<{
       this.winnerCategory = this.enabledCategories()[0] ?? "weapon";
     }
     await this.scheduleApply(this.winnerCategory, this.winnerTier);
+  }
+
+  private async finishCombinedVote(): Promise<void> {
+    this.stopMockBot();
+    const cats = this.enabledCategories();
+    const tiers = this.enabledTiers();
+    if (cats.length > 1 || this.winnerCategory == null) {
+      this.winnerCategory = pickWeightedWinner(this.categoryTally, cats);
+    }
+    this.push(`winner category=${this.winnerCategory}`);
+    if (tiers.length > 1 || this.winnerTier == null) {
+      const tierKeys = tiers.map((t) => String(t) as "1" | "2" | "3" | "4");
+      const tierKey = pickWeightedWinner(this.tierTally, tierKeys);
+      this.winnerTier = Number(tierKey) as ShopTier;
+    }
+    this.push(`winner tier=${this.winnerTier}`);
+    await this.scheduleApply(this.winnerCategory!, this.winnerTier!);
   }
 
   /** Optional pause so HUD/overlay can show winners before PNG/cfg apply. */
@@ -996,28 +1115,37 @@ export class ShopVoteController extends EventEmitter<{
     if (!this.mockBotEnabled) return;
     this.mockBotActive = true;
     this.mockTimer = setInterval(() => {
-      if (this.stage === "voting_category") {
+      let changed = false;
+      if (this.stage === "voting_category" || this.stage === "voting_combined") {
         const cats = this.enabledCategories();
-        if (cats.length === 0) return;
-        const opt = cats[Math.floor(Math.random() * cats.length)];
-        for (let i = 0; i < this.mockBotVotesPerTick; i++) {
-          this.categoryTally[opt] += 1;
+        if (cats.length > 1 || this.stage === "voting_category") {
+          if (cats.length > 0) {
+            const opt = cats[Math.floor(Math.random() * cats.length)];
+            for (let i = 0; i < this.mockBotVotesPerTick; i++) {
+              this.categoryTally[opt] += 1;
+            }
+            changed = true;
+          }
         }
-        this.emitUpdate();
-      } else if (this.stage === "voting_tier") {
-        let pool = this.enabledTiers();
-        if (this.maxAffordableTier != null) {
-          pool = pool.filter((t) => t <= this.maxAffordableTier!);
-        }
-        const tiers = pool.length > 0 ? pool : this.enabledTiers();
-        if (tiers.length === 0) return;
-        const opt = tiers[Math.floor(Math.random() * tiers.length)];
-        const key = String(opt) as "1" | "2" | "3" | "4";
-        for (let i = 0; i < this.mockBotVotesPerTick; i++) {
-          this.tierTally[key] += 1;
-        }
-        this.emitUpdate();
       }
+      if (this.stage === "voting_tier" || this.stage === "voting_combined") {
+        if (this.stage !== "voting_combined" || this.enabledTiers().length > 1) {
+          let pool = this.enabledTiers();
+          if (this.maxAffordableTier != null) {
+            pool = pool.filter((t) => t <= this.maxAffordableTier!);
+          }
+          const tiers = pool.length > 0 ? pool : this.enabledTiers();
+          if (tiers.length > 0) {
+            const opt = tiers[Math.floor(Math.random() * tiers.length)];
+            const key = String(opt) as "1" | "2" | "3" | "4";
+            for (let i = 0; i < this.mockBotVotesPerTick; i++) {
+              this.tierTally[key] += 1;
+            }
+            changed = true;
+          }
+        }
+      }
+      if (changed) this.emitUpdate();
     }, this.mockBotIntervalMs);
   }
 

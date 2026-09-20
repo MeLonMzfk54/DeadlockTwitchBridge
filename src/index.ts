@@ -20,8 +20,8 @@ import { startHttpServer } from "./server/http-server.js";
 import { printTestModeHelp } from "./test/test-mode.js";
 import type { BridgeStatus } from "./types.js";
 import { join } from "node:path";
-import { ShopVoteController } from "./shop/shop-vote-controller.js";
-import { parseShopChatVote } from "./shop/shop-chat-parser.js";
+import { ShopVoteController, isShopVotingStage } from "./shop/shop-vote-controller.js";
+import { parseShopChatVote, parseShopChatVotes } from "./shop/shop-chat-parser.js";
 import { loadShopVoteSettings, saveShopVoteSettings, formatShopChatAnnounce } from "./shop/shop-vote-settings.js";
 import { sendTwitchChatMessage } from "./twitch/chat-send.js";
 
@@ -274,13 +274,25 @@ async function main(): Promise<void> {
     twitch.on("chat", (msg) => {
       const snap = shopVote.getSnapshot();
       const stage = snap.stage;
-      if (stage !== "voting_category" && stage !== "voting_tier") return;
-      const option = parseShopChatVote(msg.text, stage, {
-        requireBangPrefix: snap.settings.requireBangPrefix,
-      });
-      if (!option) return;
-      // Login for /control nick feed; falls back to id. Last-vote-wins per chatter.
+      if (!isShopVotingStage(stage)) return;
+      const bangOpts = { requireBangPrefix: snap.settings.requireBangPrefix };
+      // Login for /control nick feed; falls back to id. Last-vote-wins per chatter per axis.
       const voterId = msg.chatterUserLogin || msg.chatterUserId;
+
+      if (stage === "voting_combined") {
+        const multi = parseShopChatVotes(msg.text, bangOpts);
+        if (!multi) return;
+        try {
+          if (multi.category) shopVote.cast(multi.category, voterId);
+          if (multi.tier) shopVote.cast(multi.tier, voterId);
+        } catch {
+          // Wrong option — ignore
+        }
+        return;
+      }
+
+      const option = parseShopChatVote(msg.text, stage, bangOpts);
+      if (!option) return;
       try {
         shopVote.cast(option, voterId);
       } catch {

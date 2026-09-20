@@ -213,7 +213,9 @@
 
     function currentImgPollSec() {
         var stage = state.lastVoteStage || "";
-        if (stage === "voting_category" || stage === "voting_tier") return IMG_POLL_VOTE_SEC;
+        if (stage === "voting_category" || stage === "voting_tier" || stage === "voting_combined") {
+            return IMG_POLL_VOTE_SEC;
+        }
         return IMG_POLL_SEC;
     }
 
@@ -297,7 +299,7 @@
         if (s === "applying" || s === "rolled" || s === "waiting_shop") {
             return { action: "skip", label: "SKIP", css: "rs-vote-btn-skip" };
         }
-        if (s === "voting_category" || s === "voting_tier") {
+        if (s === "voting_category" || s === "voting_tier" || s === "voting_combined") {
             return { action: "restart", label: "RESTART", css: "rs-vote-btn-restart" };
         }
         return { action: "start", label: "START VOTE", css: "" };
@@ -860,7 +862,7 @@
     function formatMirrorTimer(cmd) {
         if (!cmd) return "—";
         var stage = cmd.stage || "";
-        if (cmd.stageEndsAt && (stage === "voting_category" || stage === "voting_tier")) {
+        if (cmd.stageEndsAt && (stage === "voting_category" || stage === "voting_tier" || stage === "voting_combined")) {
             var left = Math.max(0, Math.ceil((Number(cmd.stageEndsAt) - nowMs()) / 1000));
             return left + "s";
         }
@@ -1092,23 +1094,32 @@
 
         paintBridgeDebug({
             stage: stage || "idle",
-            extra: (stage === "voting_tier" || (postVote && hasTierResults))
-                ? formatTierSubtitle(tierPct)
-                : (stage === "voting_category" ? formatCatSubtitle(catPct) : "")
+            extra: (stage === "voting_combined")
+                ? (formatCatSubtitle(catPct) + " · " + formatTierSubtitle(tierPct))
+                : (stage === "voting_tier" || (postVote && hasTierResults))
+                    ? formatTierSubtitle(tierPct)
+                    : (stage === "voting_category" ? formatCatSubtitle(catPct) : "")
         });
         paintVoteMirror(cmd, null);
         updateVoteStartBtn(stage);
 
         ensureRolledItemVisible(stage);
 
-        // Category chrome: lead during voting_category; winner during voting_tier + post-vote.
-        // During voting_tier keep winning category highlighted (not as an active filter).
+        // Category chrome: lead during voting_category / voting_combined;
+        // winner during voting_tier + post-vote.
         var showCatPct =
             stage === "voting_category" ||
             stage === "voting_tier" ||
+            stage === "voting_combined" ||
             (postVote && hasCatResults);
-        var showTiers = stage === "voting_tier" || (postVote && hasTierResults);
-        var catLead = stage === "voting_category" ? findLeadKey(catPct, CAT_KEYS) : null;
+        var showTiers =
+            stage === "voting_tier" ||
+            stage === "voting_combined" ||
+            (postVote && hasTierResults);
+        var catLead =
+            stage === "voting_category" || stage === "voting_combined"
+                ? findLeadKey(catPct, CAT_KEYS)
+                : null;
         var catWinner = null;
         if (stage === "voting_tier" || (postVote && hasCatResults)) {
             if (cmd.winnerCategory && typeof cmd.winnerCategory === "string") {
@@ -1122,7 +1133,12 @@
             var ck = CAT_KEYS[i];
             setCategoryPct(root, ck, pctNum(catPct, ck), showCatPct);
             setPanelClass(root, CAT_BTN_IDS[ck], "rs-vote-on", showCatPct);
-            setPanelClass(root, CAT_BTN_IDS[ck], "rs-vote-lead", stage === "voting_category" && catLead === ck);
+            setPanelClass(
+                root,
+                CAT_BTN_IDS[ck],
+                "rs-vote-lead",
+                (stage === "voting_category" || stage === "voting_combined") && catLead === ck
+            );
             setPanelClass(
                 root,
                 CAT_BTN_IDS[ck],
@@ -1146,7 +1162,10 @@
                 setPanelClass(root, "RSTier" + TIER_KEYS[i], "rs-vote-lost", false);
             }
         } else {
-            var tierLead = stage === "voting_tier" ? findLeadKey(tierPct, TIER_KEYS) : null;
+            var tierLead =
+                stage === "voting_tier" || stage === "voting_combined"
+                    ? findLeadKey(tierPct, TIER_KEYS)
+                    : null;
             var tierWinner = null;
             if (postVote && hasTierResults) {
                 if (cmd.winnerTier != null && Number.isFinite(Number(cmd.winnerTier))) {
@@ -1166,7 +1185,9 @@
         }
 
         var subText = DEFAULT_SUBTITLE;
-        if (stage === "voting_category") subText = formatCatSubtitle(catPct);
+        if (stage === "voting_combined") {
+            subText = formatCatSubtitle(catPct) + " · " + formatTierSubtitle(tierPct);
+        } else if (stage === "voting_category") subText = formatCatSubtitle(catPct);
         else if (stage === "voting_tier") subText = formatTierSubtitle(tierPct);
         else if (postVote && hasTierResults) subText = "Voted · " + formatTierSubtitle(tierPct);
         setLabelText(root, "RSSubtitle", subText);
@@ -1310,9 +1331,10 @@
             "rolled",
             "waiting_shop",
             "purchased",
-            "failed"
+            "failed",
+            "voting_combined"
         ];
-        var i = clampLevel(level, 7);
+        var i = clampLevel(level, 8);
         return stages[i] || "idle";
     }
 

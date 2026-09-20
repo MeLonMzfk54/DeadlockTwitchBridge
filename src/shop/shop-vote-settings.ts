@@ -15,6 +15,8 @@ export const DEFAULT_CHAT_ANNOUNCE_CATEGORY =
   "Голосование началось! Категория магазина — пишите в чат: {options}. {seconds} сек.";
 export const DEFAULT_CHAT_ANNOUNCE_TIER =
   "Голосование за тир ({category})! Пишите в чат: {options}. {seconds} сек.";
+export const DEFAULT_CHAT_ANNOUNCE_COMBINED =
+  "Голосование! Тип: {options}. Тир: {tierOptions}. Можно вместе: !w 1. {seconds} сек.";
 
 export interface ShopVoteSettings {
   /** After a successful purchase, wait restartDelayMs then start a new vote (shop need not be open). */
@@ -46,6 +48,8 @@ export interface ShopVoteSettings {
   chatAnnounceCategory: string;
   /** Template for tier-vote announce (empty = skip). */
   chatAnnounceTier: string;
+  /** Template for combined type+tier vote (empty = skip). Placeholders: {options} {tierOptions} {seconds} {prefix}. */
+  chatAnnounceCombined: string;
 }
 
 export interface ShopVoteSettingsSeed {
@@ -78,6 +82,7 @@ export function defaultShopVoteSettings(seed: ShopVoteSettingsSeed = {}): ShopVo
     chatAnnounceEnabled: true,
     chatAnnounceCategory: DEFAULT_CHAT_ANNOUNCE_CATEGORY,
     chatAnnounceTier: DEFAULT_CHAT_ANNOUNCE_TIER,
+    chatAnnounceCombined: DEFAULT_CHAT_ANNOUNCE_COMBINED,
   };
 }
 
@@ -142,6 +147,12 @@ export function mergeShopVoteSettings(
   }
   if ("chatAnnounceTier" in partial) {
     next.chatAnnounceTier = clampAnnounceText(partial.chatAnnounceTier, next.chatAnnounceTier);
+  }
+  if ("chatAnnounceCombined" in partial) {
+    next.chatAnnounceCombined = clampAnnounceText(
+      partial.chatAnnounceCombined,
+      next.chatAnnounceCombined,
+    );
   }
   if (isPositiveMs(partial.categoryDurationMs)) {
     next.categoryDurationMs = Math.round(partial.categoryDurationMs);
@@ -250,12 +261,13 @@ const CAT_LABELS: Record<ShopSettingsCategory, string> = {
 };
 
 export interface FormatShopChatAnnounceInput {
-  stage: "voting_category" | "voting_tier";
+  stage: "voting_category" | "voting_tier" | "voting_combined";
   settings: Pick<
     ShopVoteSettings,
     | "chatAnnounceEnabled"
     | "chatAnnounceCategory"
     | "chatAnnounceTier"
+    | "chatAnnounceCombined"
     | "requireBangPrefix"
     | "enabledCategories"
     | "minTier"
@@ -269,7 +281,7 @@ export interface FormatShopChatAnnounceInput {
 
 /**
  * Build the chat announce string for a voting stage, or null if disabled / empty / no template.
- * Substitutes {options} {seconds} {prefix} {category}; trims to Twitch max length.
+ * Substitutes {options} {tierOptions} {seconds} {prefix} {category}; trims to Twitch max length.
  */
 export function formatShopChatAnnounce(input: FormatShopChatAnnounceInput): string | null {
   const { stage, settings } = input;
@@ -278,26 +290,34 @@ export function formatShopChatAnnounce(input: FormatShopChatAnnounceInput): stri
   const template =
     stage === "voting_category"
       ? settings.chatAnnounceCategory
-      : settings.chatAnnounceTier;
+      : stage === "voting_tier"
+        ? settings.chatAnnounceTier
+        : settings.chatAnnounceCombined;
   if (typeof template !== "string" || !template.trim()) return null;
 
   const prefix = settings.requireBangPrefix ? "!" : "";
+  const cats =
+    settings.enabledCategories.length > 0
+      ? settings.enabledCategories
+      : ALL_CATEGORIES;
+  const catOptions = cats
+    .map((c) => (prefix ? `${prefix}${CAT_SHORT[c]}` : c))
+    .join(" / ");
+  const tiers = enabledTiersFromSettings(settings);
+  const tierOptions = tiers.map((t) => `${prefix}${t}`).join(" / ");
+
   let options: string;
   let seconds: number;
 
   if (stage === "voting_category") {
-    const cats =
-      settings.enabledCategories.length > 0
-        ? settings.enabledCategories
-        : ALL_CATEGORIES;
-    options = cats
-      .map((c) => (prefix ? `${prefix}${CAT_SHORT[c]}` : c))
-      .join(" / ");
+    options = catOptions;
     seconds = Math.max(1, Math.round(settings.categoryDurationMs / 1000));
-  } else {
-    const tiers = enabledTiersFromSettings(settings);
-    options = tiers.map((t) => `${prefix}${t}`).join(" / ");
+  } else if (stage === "voting_tier") {
+    options = tierOptions;
     seconds = Math.max(1, Math.round(settings.tierDurationMs / 1000));
+  } else {
+    options = catOptions;
+    seconds = Math.max(1, Math.round(settings.categoryDurationMs / 1000));
   }
 
   const catKey = (input.category ?? "") as ShopSettingsCategory;
@@ -308,6 +328,7 @@ export function formatShopChatAnnounce(input: FormatShopChatAnnounceInput): stri
 
   const filled = template
     .replaceAll("{options}", options)
+    .replaceAll("{tierOptions}", tierOptions)
     .replaceAll("{seconds}", String(seconds))
     .replaceAll("{prefix}", prefix)
     .replaceAll("{category}", categoryLabel)

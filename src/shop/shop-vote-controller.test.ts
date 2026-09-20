@@ -93,10 +93,15 @@ test("beginTierVote keeps category tallies for post-vote HUD", async () => {
     mockBotIntervalMs: 60_000,
   });
 
-  await ctrl.start("full");
+  await ctrl.start("category");
   ctrl.cast("weapon");
   ctrl.cast("weapon");
   await new Promise((r) => setTimeout(r, 80));
+  assert.equal(ctrl.getSnapshot().stage, "idle");
+  assert.equal(ctrl.getSnapshot().winnerCategory, "weapon");
+  assert.ok(ctrl.getSnapshot().categoryPct.weapon > 0);
+
+  await ctrl.start("tier");
   const snap = ctrl.getSnapshot();
   assert.equal(snap.stage, "voting_tier");
   assert.equal(snap.winnerCategory, "weapon");
@@ -179,21 +184,17 @@ test("shop_rolled goes to waiting_shop; shop_cmd alone does not ack", async () =
 test("vote tallies survive waiting_shop until purchase", async () => {
   const bus = new GameEventBus();
   const ctrl = new ShopVoteController(makeFakeClient(), bus, {
-    categoryDurationMs: 30,
-    tierDurationMs: 30,
+    categoryDurationMs: 40,
+    tierDurationMs: 40,
     mockBotIntervalMs: 60_000,
   });
 
   await ctrl.start("full");
+  assert.equal(ctrl.getSnapshot().stage, "voting_combined");
   ctrl.cast("weapon");
   ctrl.cast("weapon");
-  await new Promise((r) => setTimeout(r, 50));
-  // Now in voting_tier (or applying if tier also finished)
-  const mid = ctrl.getSnapshot();
-  if (mid.stage === "voting_tier") {
-    ctrl.cast("2");
-    ctrl.cast("2");
-  }
+  ctrl.cast("2");
+  ctrl.cast("2");
   await new Promise((r) => setTimeout(r, 80));
 
   bus.ingest(
@@ -473,13 +474,14 @@ test("skip clears pending and returns to idle", async () => {
 test("failed purchase clears vote tallies", async () => {
   const bus = new GameEventBus();
   const ctrl = new ShopVoteController(makeFakeClient(), bus, {
-    categoryDurationMs: 30,
-    tierDurationMs: 30,
+    categoryDurationMs: 40,
+    tierDurationMs: 40,
     mockBotIntervalMs: 60_000,
   });
 
   await ctrl.start("full");
   ctrl.cast("weapon");
+  ctrl.cast("1");
   await new Promise((r) => setTimeout(r, 80));
   bus.ingest(
     {
@@ -507,6 +509,58 @@ test("failed purchase clears vote tallies", async () => {
   assert.deepEqual(snap.tierPct, { "1": 0, "2": 0, "3": 0, "4": 0 });
   assert.equal(snap.winnerCategory, null);
   assert.equal(snap.winnerTier, null);
+});
+
+test("full start opens voting_combined; independent last-wins per axis", async () => {
+  const bus = new GameEventBus();
+  const ctrl = new ShopVoteController(makeFakeClient(), bus, {
+    categoryDurationMs: 60_000,
+    tierDurationMs: 60_000,
+    mockBotIntervalMs: 60_000,
+  });
+
+  await ctrl.start("full");
+  assert.equal(ctrl.getSnapshot().stage, "voting_combined");
+
+  ctrl.cast("weapon", "alice");
+  ctrl.cast("1", "alice");
+  ctrl.cast("vitality", "alice");
+  ctrl.cast("2", "alice");
+  const snap = ctrl.getSnapshot();
+  assert.equal(snap.categoryTally.weapon, 0);
+  assert.equal(snap.categoryTally.vitality, 1);
+  assert.equal(snap.tierTally["1"], 0);
+  assert.equal(snap.tierTally["2"], 1);
+
+  // Same choice again is a no-op
+  ctrl.cast("vitality", "alice");
+  ctrl.cast("2", "alice");
+  assert.equal(ctrl.getSnapshot().categoryTally.vitality, 1);
+  assert.equal(ctrl.getSnapshot().tierTally["2"], 1);
+  ctrl.cancel();
+});
+
+test("voting_combined finishes with both winners and applies", async () => {
+  const sent: string[][] = [];
+  const bus = new GameEventBus();
+  const ctrl = new ShopVoteController(makeFakeClient(sent), bus, {
+    categoryDurationMs: 40,
+    tierDurationMs: 60_000,
+    mockBotIntervalMs: 60_000,
+  });
+
+  await ctrl.start("full");
+  ctrl.cast("spirit");
+  ctrl.cast("spirit");
+  ctrl.cast("3");
+  ctrl.cast("3");
+  await new Promise((r) => setTimeout(r, 80));
+  const snap = ctrl.getSnapshot();
+  assert.equal(snap.stage, "applying");
+  assert.equal(snap.winnerCategory, "spirit");
+  assert.equal(snap.winnerTier, 3);
+  assert.ok(sent.length >= 1);
+  ctrl.cancel();
 });
 
 test("autoStart after purchase waits then starts a new full vote", async () => {
@@ -544,7 +598,7 @@ test("autoStart after purchase waits then starts a new full vote", async () => {
   );
   assert.equal(ctrl.getSnapshot().stage, "purchased");
   await new Promise((r) => setTimeout(r, 80));
-  assert.equal(ctrl.getSnapshot().stage, "voting_category");
+  assert.equal(ctrl.getSnapshot().stage, "voting_combined");
   ctrl.cancel();
 });
 
@@ -583,7 +637,7 @@ test("shop_vote_start starts a full vote", async () => {
     "http",
   );
   await new Promise((r) => setTimeout(r, 20));
-  assert.equal(ctrl.getSnapshot().stage, "voting_category");
+  assert.equal(ctrl.getSnapshot().stage, "voting_combined");
   ctrl.cancel();
 });
 
@@ -630,7 +684,7 @@ test("shop_vote_start during vote ignored when hudCanRestart is false", async ()
     "http",
   );
   await new Promise((r) => setTimeout(r, 20));
-  assert.equal(ctrl.getSnapshot().stage, "voting_category");
+  assert.equal(ctrl.getSnapshot().stage, "voting_combined");
   assert.ok((ctrl.getSnapshot().categoryTally.weapon ?? 0) >= 1);
   ctrl.cancel();
 });

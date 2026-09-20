@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import {
   DEFAULT_CHAT_ANNOUNCE_CATEGORY,
+  DEFAULT_CHAT_ANNOUNCE_COMBINED,
   defaultShopVoteSettings,
   enabledTiersFromSettings,
   formatShopChatAnnounce,
@@ -56,6 +57,7 @@ describe("mergeShopVoteSettings", () => {
     assert.equal(d.chatAnnounceEnabled, true);
     assert.equal(d.chatAnnounceCategory, DEFAULT_CHAT_ANNOUNCE_CATEGORY);
     assert.ok(d.chatAnnounceTier.includes("{category}"));
+    assert.equal(d.chatAnnounceCombined, DEFAULT_CHAT_ANNOUNCE_COMBINED);
   });
 });
 
@@ -96,6 +98,20 @@ describe("formatShopChatAnnounce", () => {
     assert.match(msg!, /Vitality/);
     assert.match(msg!, /2 \/ 3/);
     assert.match(msg!, /30 сек/);
+  });
+
+  it("formats combined announce with type and tier options", () => {
+    const settings = defaultShopVoteSettings({ categoryDurationMs: 20_000 });
+    settings.requireBangPrefix = true;
+    settings.enabledCategories = ["weapon", "spirit"];
+    settings.minTier = 1;
+    settings.maxTier = 2;
+    const msg = formatShopChatAnnounce({ stage: "voting_combined", settings });
+    assert.ok(msg);
+    assert.match(msg!, /!w \/ !s/);
+    assert.match(msg!, /!1 \/ !2/);
+    assert.match(msg!, /!w 1/);
+    assert.match(msg!, /20 сек/);
   });
 
   it("returns null when disabled or empty template", () => {

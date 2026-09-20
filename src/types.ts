@@ -127,6 +127,7 @@ export interface ShopVoteStatus {
     applyDelayMs: number;
     mockBotIntervalMs: number;
     overlayHoldMs: number;
+    chatAnnounceCombined?: string;
   };
 }
 

@@ -230,16 +230,23 @@ npm run dev
 
 ### Как голосует чат
 
-На стадиях `voting_category` / `voting_tier` bridge слушает EventSub `channel.chat.message` и парсит **первое слово** сообщения (опциональный префикс `!`; в настройках можно требовать `!`):
+Режим **`full`** (по умолчанию) — одна стадия `voting_combined`: тип и тир голосуются **параллельно**. Bridge слушает EventSub `channel.chat.message` и парсит **все слова** сообщения (опциональный префикс `!`; в настройках можно требовать, чтобы сообщение начиналось с `!`):
 
-| Стадия | Команды |
-|--------|---------|
-| Категория | `weapon` / `w`, `vitality` / `armor` / `v`, `spirit` / `tech` / `s` |
-| Тир | `1`–`4` или `t1`–`t4` |
+| Что писать | Результат |
+|------------|-----------|
+| `!w 1`, `!w !1`, `w 1`, `!1 !w` | weapon **и** T1 |
+| `!w` / `weapon` | только тип (тир можно дописать позже) |
+| `!1` / `t2` | только тир |
+| `weapon` / `w`, `vitality` / `armor` / `v`, `spirit` / `tech` / `s` | тип |
+| `1`–`4` или `t1`–`t4` | тир |
 
-Один голос на Twitch `userId` (last-vote-wins внутри стадии). Кнопки в `/control` без `userId` — каждый клик считается отдельно. Mock-бот по умолчанию **выкл** (`POST /api/shop-vote/mock`).
+Режимы `category` / `tier` — по-прежнему отдельные стадии; там тоже можно писать комбо, засчитывается только нужная ось.
 
-При реальном старте стадии `voting_category` / `voting_tier` bridge пишет в чат редактируемый текст (настройки `chatAnnounce*` в `/control` → `config/shop-vote.json`). Нужен scope `user:write:chat`. Плейсхолдеры: `{options}`, `{seconds}`, `{prefix}`, `{category}`. Пустой шаблон или выключенный чекбокс — сообщение не шлётся.
+Один голос на Twitch `userId` **на каждую ось** (last-vote-wins независимо для типа и тира). Кнопки в `/control` без `userId` — каждый клик считается отдельно. Mock-бот по умолчанию **выкл** (`POST /api/shop-vote/mock`).
+
+При старте стадии `voting_combined` / `voting_category` / `voting_tier` bridge пишет в чат редактируемый текст (настройки `chatAnnounce*` в `/control` → `config/shop-vote.json`). Нужен scope `user:write:chat`. Плейсхолдеры: `{options}`, `{tierOptions}`, `{seconds}`, `{prefix}`, `{category}`. Пустой шаблон или выключенный чекбокс — сообщение не шлётся.
+
+Длительность полного цикла берётся из **«Категория / полный цикл (сек)»** (`categoryDurationMs`).
 
 ### Каналы Bridge → HUD / apply
 

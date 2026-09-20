@@ -24,6 +24,7 @@ const STAGE_TO_LEVEL: Record<ShopVoteStage, number> = {
   waiting_shop: 5,
   purchased: 6,
   failed: 7,
+  voting_combined: 8,
 };
 
 const LEVEL_TO_STAGE: Record<number, ShopVoteStage> = {
@@ -35,6 +36,7 @@ const LEVEL_TO_STAGE: Record<number, ShopVoteStage> = {
   5: "waiting_shop",
   6: "purchased",
   7: "failed",
+  8: "voting_combined",
 };
 
 export function clampLevel(level: number, max = 100): number {
@@ -56,7 +58,7 @@ export function stageToLevel(stage: ShopVoteStage): number {
 }
 
 export function levelToStage(level: number): ShopVoteStage {
-  return LEVEL_TO_STAGE[clampLevel(level, 7)] ?? "idle";
+  return LEVEL_TO_STAGE[clampLevel(level, 8)] ?? "idle";
 }
 
 export function timerSecondsFromSnapshot(snap: Pick<ShopVoteSnapshot, "stageEndsAt">): number {
@@ -123,8 +125,8 @@ export function levelsForSlot(
   snap: ShopVoteSnapshot,
   slot: HudSlot,
 ): { w: number; h: number } {
-  // Cats during category vote, tier vote (frozen winner %), and post-vote results.
-  // Tiers during tier vote + post-vote. Zero on idle / purchased / failed.
+  // Cats during category / combined / tier vote (frozen %) / post-vote.
+  // Tiers during combined / tier vote + post-vote. Zero on idle / purchased / failed.
   const postVote =
     snap.stage === "applying" ||
     snap.stage === "rolled" ||
@@ -132,8 +134,12 @@ export function levelsForSlot(
   const showCats =
     snap.stage === "voting_category" ||
     snap.stage === "voting_tier" ||
+    snap.stage === "voting_combined" ||
     postVote;
-  const showTiers = snap.stage === "voting_tier" || postVote;
+  const showTiers =
+    snap.stage === "voting_tier" ||
+    snap.stage === "voting_combined" ||
+    postVote;
   switch (slot) {
     case "cats":
       if (!showCats) return { w: 0, h: 0 };
@@ -282,7 +288,7 @@ export function getProbePng(): Buffer {
 }
 
 function slotMaxLevels(slot: HudSlot): { wMax: number; hMax: number } {
-  if (slot === "meta") return { wMax: 7, hMax: 60 };
+  if (slot === "meta") return { wMax: 8, hMax: 60 };
   if (slot === "cmd") return { wMax: CMD_SEQ_MAX, hMax: 60 };
   return { wMax: 100, hMax: 100 };
 }
@@ -290,7 +296,7 @@ function slotMaxLevels(slot: HudSlot): { wMax: number; hMax: number } {
 export function getHudSlotPng(snap: ShopVoteSnapshot, slot: HudSlot): Buffer {
   const levels = levelsForSlot(snap, slot);
   const { wMax, hMax } = slotMaxLevels(slot);
-  // meta: w=stage (0-7), h=timer/winner (0-60); cmd: w=seq (0-200), h=pack/skip (0-60); pct: 0-100
+  // meta: w=stage (0-8), h=timer/winner (0-60); cmd: w=seq (0-200), h=pack/skip (0-60); pct: 0-100
   const width = encodeLevel(levels.w, wMax);
   const height = encodeLevel(levels.h, hMax);
   return createSolidPng(width, height);

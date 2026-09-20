@@ -152,6 +152,7 @@
     const LIVE_STAGES = new Set([
       "voting_category",
       "voting_tier",
+      "voting_combined",
       "applying",
       "waiting_shop",
     ]);
@@ -165,6 +166,7 @@
     const STAGE_LABELS = {
       voting_category: "Vote · Category",
       voting_tier: "Vote · Tier",
+      voting_combined: "Vote · Type + Tier",
       applying: "Applying",
       rolled: "Rolled",
       waiting_shop: "Waiting shop",
@@ -206,7 +208,9 @@
       const stage = snap.stage || "idle";
       if (
         snap.stageEndsAt &&
-        (stage === "voting_category" || stage === "voting_tier")
+        (stage === "voting_category" ||
+          stage === "voting_tier" ||
+          stage === "voting_combined")
       ) {
         return String(Math.max(0, Math.ceil((snap.stageEndsAt - now) / 1000))) + "s";
       }
@@ -219,6 +223,9 @@
 
     function formatHint(snap) {
       const stage = snap.stage || "idle";
+      if (stage === "voting_combined") {
+        return "Chat: !w 1 · type + tier together or separate";
+      }
       if (stage === "voting_category") {
         return "Chat: weapon / vitality / spirit";
       }
@@ -255,11 +262,13 @@
       const showCats =
         stage === "voting_category" ||
         stage === "voting_tier" ||
+        stage === "voting_combined" ||
         stage === "applying" ||
         HOLD_STAGES.has(stage) ||
         stage === "waiting_shop";
       const showTiers =
         stage === "voting_tier" ||
+        stage === "voting_combined" ||
         stage === "applying" ||
         HOLD_STAGES.has(stage) ||
         stage === "waiting_shop";

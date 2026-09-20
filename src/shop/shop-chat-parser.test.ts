@@ -4,6 +4,7 @@ import {
   normalizeShopChatToken,
   parseCategoryChatVote,
   parseShopChatVote,
+  parseShopChatVotes,
   parseTierChatVote,
 } from "./shop-chat-parser.js";
 
@@ -46,6 +47,11 @@ describe("parseCategoryChatVote", () => {
     assert.equal(parseCategoryChatVote("t2"), null);
     assert.equal(parseCategoryChatVote("!pog"), null);
   });
+
+  it("picks category from multi-token messages", () => {
+    assert.equal(parseCategoryChatVote("!w 1"), "weapon");
+    assert.equal(parseCategoryChatVote("1 w"), "weapon");
+  });
 });
 
 describe("parseTierChatVote", () => {
@@ -57,12 +63,59 @@ describe("parseTierChatVote", () => {
     assert.equal(parseTierChatVote("!t4 now"), "4");
   });
 
-  it("ignores category words and other chat", () => {
+  it("ignores category-only and other chat", () => {
     assert.equal(parseTierChatVote("weapon"), null);
     assert.equal(parseTierChatVote("w"), null);
     assert.equal(parseTierChatVote("5"), null);
     assert.equal(parseTierChatVote("t5"), null);
     assert.equal(parseTierChatVote("hello"), null);
+  });
+
+  it("picks tier from multi-token messages", () => {
+    assert.equal(parseTierChatVote("!w 1"), "1");
+    assert.equal(parseTierChatVote("w !t2"), "2");
+  });
+});
+
+describe("parseShopChatVotes", () => {
+  it("parses combined !w 1 and !w !1", () => {
+    assert.deepEqual(parseShopChatVotes("!w 1"), { category: "weapon", tier: "1" });
+    assert.deepEqual(parseShopChatVotes("!w !1"), { category: "weapon", tier: "1" });
+    assert.deepEqual(parseShopChatVotes("w 1"), { category: "weapon", tier: "1" });
+  });
+
+  it("accepts either order", () => {
+    assert.deepEqual(parseShopChatVotes("!1 !w"), { category: "weapon", tier: "1" });
+    assert.deepEqual(parseShopChatVotes("t2 vitality"), { category: "vitality", tier: "2" });
+  });
+
+  it("accepts category-only or tier-only", () => {
+    assert.deepEqual(parseShopChatVotes("!w"), { category: "weapon" });
+    assert.deepEqual(parseShopChatVotes("weapon"), { category: "weapon" });
+    assert.deepEqual(parseShopChatVotes("!1"), { tier: "1" });
+    assert.deepEqual(parseShopChatVotes("t3"), { tier: "3" });
+  });
+
+  it("takes first valid category and first valid tier", () => {
+    assert.deepEqual(parseShopChatVotes("!w !v 2 3"), { category: "weapon", tier: "2" });
+  });
+
+  it("returns null for unrelated chat", () => {
+    assert.equal(parseShopChatVotes("hello"), null);
+    assert.equal(parseShopChatVotes("!pog"), null);
+    assert.equal(parseShopChatVotes(""), null);
+  });
+
+  it("honors requireBangPrefix on the message", () => {
+    assert.equal(parseShopChatVotes("w 1", { requireBangPrefix: true }), null);
+    assert.deepEqual(parseShopChatVotes("!w 1", { requireBangPrefix: true }), {
+      category: "weapon",
+      tier: "1",
+    });
+    assert.deepEqual(parseShopChatVotes("!w !1", { requireBangPrefix: true }), {
+      category: "weapon",
+      tier: "1",
+    });
   });
 });
 
@@ -74,6 +127,11 @@ describe("parseShopChatVote", () => {
     assert.equal(parseShopChatVote("2", "voting_category"), null);
     assert.equal(parseShopChatVote("weapon", "idle"), null);
     assert.equal(parseShopChatVote("weapon", "applying"), null);
+  });
+
+  it("on voting_combined returns category preferentially", () => {
+    assert.equal(parseShopChatVote("!w 1", "voting_combined"), "weapon");
+    assert.equal(parseShopChatVote("!2", "voting_combined"), "2");
   });
 
   it("honors requireBangPrefix", () => {

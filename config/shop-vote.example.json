@@ -16,5 +16,6 @@
   "hudCanRestart": true,
   "chatAnnounceEnabled": true,
   "chatAnnounceCategory": "Голосование началось! Категория магазина — пишите в чат: {options}. {seconds} сек.",
-  "chatAnnounceTier": "Голосование за тир ({category})! Пишите в чат: {options}. {seconds} сек."
+  "chatAnnounceTier": "Голосование за тир ({category})! Пишите в чат: {options}. {seconds} сек.",
+  "chatAnnounceCombined": "Голосование! Тип: {options}. Тир: {tierOptions}. Можно вместе: !w 1. {seconds} сек."
 }

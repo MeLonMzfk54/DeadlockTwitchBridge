@@ -435,7 +435,7 @@
       </label>
       <div style="margin:8px 0 0">
         <label for="shopChatAnnounceCategory" style="display:block;font-size:0.85rem;color:var(--muted);margin-bottom:4px">
-          Текст (категория) — плейсхолдеры: <code>{options}</code> <code>{seconds}</code> <code>{prefix}</code>
+          Текст (только категория) — плейсхолдеры: <code>{options}</code> <code>{seconds}</code> <code>{prefix}</code>
         </label>
         <textarea
           id="shopChatAnnounceCategory"
@@ -446,7 +446,7 @@
       </div>
       <div style="margin:8px 0 0">
         <label for="shopChatAnnounceTier" style="display:block;font-size:0.85rem;color:var(--muted);margin-bottom:4px">
-          Текст (тир) — плюс <code>{category}</code>
+          Текст (только тир) — плюс <code>{category}</code>
         </label>
         <textarea
           id="shopChatAnnounceTier"
@@ -455,9 +455,20 @@
           onchange="setShopSettingsFromUi()"
         ></textarea>
       </div>
+      <div style="margin:8px 0 0">
+        <label for="shopChatAnnounceCombined" style="display:block;font-size:0.85rem;color:var(--muted);margin-bottom:4px">
+          Текст (полный цикл тип+тир) — <code>{options}</code> <code>{tierOptions}</code> <code>{seconds}</code> <code>{prefix}</code>
+        </label>
+        <textarea
+          id="shopChatAnnounceCombined"
+          rows="2"
+          style="width:100%;resize:vertical;font:inherit;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text)"
+          onchange="setShopSettingsFromUi()"
+        ></textarea>
+      </div>
       <div class="duration-row">
         <label>
-          Категория (сек)
+          Категория / полный цикл (сек)
           <input id="shopCatDuration" type="number" min="1" max="180" step="1" value="25" onchange="setShopDurations()" />
         </label>
         <label>
@@ -473,7 +484,7 @@
         <label>
           Цикл автостарта
           <select id="shopStartMode" onchange="setShopSettingsFromUi()">
-            <option value="full">Полный (кат → тир)</option>
+            <option value="full">Полный (тип + тир)</option>
             <option value="category">Только категория</option>
             <option value="tier">Только тир</option>
           </select>
@@ -517,7 +528,7 @@
         Настройки сохраняются в <code>config/shop-vote.json</code> и переживают рестарт bridge.
       </p>
       <div class="inline-actions">
-        <button class="primary" onclick="shopStart('full')">Полный цикл (кат → тир → apply)</button>
+        <button class="primary" onclick="shopStart('full')">Полный цикл (тип + тир → apply)</button>
         <button onclick="shopStart('category')">Только категория</button>
         <button onclick="shopStart('tier')">Только тир</button>
         <button class="danger" onclick="shopCancel()">Cancel</button>
@@ -568,7 +579,7 @@
       <code>citadel_hud_hero_shop.xml</code> + <code>twitch_bridge_shop.js</code> (mod 1.9.0+);
       выключите отдельный pak02 Random Shop.
       Голоса чата: scope <code>user:read:chat</code> (точка «Чат» выше); команды
-      <code>w|v|s</code> / <code>1–4</code> (см. README).
+      <code>!w 1</code> / <code>w|v|s</code> / <code>1–4</code> (см. README).
       API: <code>/api/shop-vote</code>, <code>/start</code>, <code>/cast</code>, <code>/skip</code>,
       <code>/mock</code>, <code>/durations</code>, <code>/settings</code>, <code>/apply</code>; HUD PNG
       <code>/api/shop-vote-hud.png</code> (слоты cats|t12|t34|meta|cmd).
@@ -874,7 +885,7 @@
       syncShopSettingsUi(s.settings || {});
 
       let timerLabel = "—";
-      if (s.stageEndsAt && (s.stage === "voting_category" || s.stage === "voting_tier")) {
+      if (s.stageEndsAt && (s.stage === "voting_category" || s.stage === "voting_tier" || s.stage === "voting_combined")) {
         const left = Math.max(0, Math.ceil((s.stageEndsAt - Date.now()) / 1000));
         const delayNote =
           s.winnerCategory && s.winnerTier && s.stage === "voting_tier" && left > 0
@@ -1022,6 +1033,11 @@
         const v = typeof cfg.chatAnnounceTier === "string" ? cfg.chatAnnounceTier : "";
         if (annTier.value !== v) annTier.value = v;
       }
+      const annCombined = document.getElementById("shopChatAnnounceCombined");
+      if (annCombined && document.activeElement !== annCombined) {
+        const v = typeof cfg.chatAnnounceCombined === "string" ? cfg.chatAnnounceCombined : "";
+        if (annCombined.value !== v) annCombined.value = v;
+      }
       const allowHud = document.getElementById("shopAllowHudStart");
       if (allowHud && document.activeElement !== allowHud) {
         allowHud.checked = cfg.allowHudStart !== false;
@@ -1094,6 +1110,7 @@
         chatAnnounceEnabled: document.getElementById("shopChatAnnounce").checked,
         chatAnnounceCategory: document.getElementById("shopChatAnnounceCategory").value,
         chatAnnounceTier: document.getElementById("shopChatAnnounceTier").value,
+        chatAnnounceCombined: document.getElementById("shopChatAnnounceCombined").value,
         defaultStartMode: document.getElementById("shopStartMode").value,
         applyDelayMs: Math.max(0, Math.round((Number.isFinite(applySec) ? applySec : 0) * 1000)),
         mockBotIntervalMs: Number(document.getElementById("shopMockInterval").value),
