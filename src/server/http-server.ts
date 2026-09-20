@@ -9,6 +9,16 @@ import {
   GameEventBus,
   parseIncomingGameEvent,
 } from "../game/game-event-bus.js";
+import {
+  parseShopCategory,
+  parseShopTier,
+  type ShopVoteController,
+} from "../shop/shop-vote-controller.js";
+import {
+  getHudSlotPng,
+  getProbePng,
+  parseHudSlot,
+} from "../shop/shop-vote-png.js";
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -24,6 +34,9 @@ export interface HttpServerContext {
   effects: Map<string, GameEffect>;
   getStatus: () => BridgeStatus;
   gameEventBus: GameEventBus;
+  shopVote: ShopVoteController;
+  /** Persist shop prefs after /control or API changes. */
+  onShopSettingsChange?: () => void;
 }
 
 export function startHttpServer(host: string, port: number, ctx: HttpServerContext): void {
@@ -34,8 +47,13 @@ export function startHttpServer(host: string, port: number, ctx: HttpServerConte
   server.listen(port, host, () => {
     console.log(`[http] Control panel: http://${host}:${port}/control`);
     console.log(`[http] OBS overlay:   http://${host}:${port}/overlay`);
+    console.log(`[http] Shop overlay:  http://${host}:${port}/overlay/shop`);
     console.log(`[http] API status:    http://${host}:${port}/api/status`);
     console.log(`[http] Game events:   http://${host}:${port}/api/game-events`);
+    console.log(`[http] Shop vote:     http://${host}:${port}/api/shop-vote`);
+    console.log(`[http] Shop cmd:      http://${host}:${port}/api/shop-cmd`);
+    console.log(`[http] Shop probe:    http://${host}:${port}/api/shop-probe.png`);
+    console.log(`[http] Shop HUD PNG:  http://${host}:${port}/api/shop-vote-hud.png`);
   });
 }
 
@@ -47,6 +65,16 @@ async function handleRequest(
   try {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
     const { pathname } = url;
+
+    if (req.method === "OPTIONS") {
+      res.writeHead(204, {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+      });
+      res.end();
+      return;
+    }
 
     if (req.method === "GET" && pathname === "/api/status") {
       return json(res, 200, ctx.getStatus());
@@ -141,6 +169,156 @@ async function handleRequest(
       return json(res, 200, { ok: true });
     }
 
+    // Panorama image side-channel (Minigames-style). URL must end in .png.
+    if (req.method === "GET" && pathname === "/api/shop-probe.png") {
+      return png(res, getProbePng());
+    }
+
+    if (req.method === "GET" && pathname === "/api/shop-vote-hud.png") {
+      const match = ctx.gameEventBus.getModStatus().match;
+      ctx.shopVote.syncFromMatchPhase(match.phase || "", match.shopOpen);
+      const slot = parseHudSlot(url.searchParams.get("slot"));
+      if (!slot) {
+        return json(res, 400, { error: "slot=cats|t12|t34|meta|cmd required" });
+      }
+      return png(res, getHudSlotPng(ctx.shopVote.getSnapshot(), slot));
+    }
+
+    if (req.method === "GET" && pathname === "/api/shop-vote") {
+      const match = ctx.gameEventBus.getModStatus().match;
+      ctx.shopVote.syncFromMatchPhase(match.phase || "", match.shopOpen);
+      return json(res, 200, ctx.shopVote.getSnapshot());
+    }
+
+    // POST same as GET — kept for control.html / legacy; game HUD uses PNG side-channel.
+    if (req.method === "POST" && pathname === "/api/shop-vote") {
+      const match = ctx.gameEventBus.getModStatus().match;
+      ctx.shopVote.syncFromMatchPhase(match.phase || "", match.shopOpen);
+      return json(res, 200, ctx.shopVote.getSnapshot());
+    }
+
+    if (req.method === "GET" && pathname === "/api/shop-cmd") {
+      return json(res, 200, ctx.shopVote.getShopCmd());
+    }
+
+    // POST same as GET — Panorama AsyncWebRequest often only works reliably with POST.
+    if (req.method === "POST" && pathname === "/api/shop-cmd") {
+      return json(res, 200, ctx.shopVote.getShopCmd());
+    }
+
+    if (req.method === "POST" && pathname === "/api/shop-vote/start") {
+      const body = await readBody(req);
+      const payload = JSON.parse(body || "{}") as { stage?: string };
+      const stage =
+        payload.stage === "category" || payload.stage === "tier" || payload.stage === "full"
+          ? payload.stage
+          : "full";
+      const snap = await ctx.shopVote.start(stage);
+      return json(res, 200, snap);
+    }
+
+    if (req.method === "POST" && pathname === "/api/shop-vote/cast") {
+      const body = await readBody(req);
+      const payload = JSON.parse(body || "{}") as { option?: string; userId?: string };
+      if (!payload.option) {
+        return json(res, 400, { error: "option is required" });
+      }
+      try {
+        const userId = typeof payload.userId === "string" ? payload.userId : undefined;
+        const snap = ctx.shopVote.cast(payload.option, userId);
+        return json(res, 200, snap);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return json(res, 400, { error: message });
+      }
+    }
+
+    if (req.method === "POST" && pathname === "/api/shop-vote/apply") {
+      const body = await readBody(req);
+      const payload = JSON.parse(body || "{}") as { category?: unknown; tier?: unknown };
+      const category = parseShopCategory(payload.category);
+      const tier = parseShopTier(payload.tier);
+      if (!category || !tier) {
+        return json(res, 400, { error: "category (weapon|vitality|spirit) and tier (1-4) required" });
+      }
+      const snap = await ctx.shopVote.apply(category, tier);
+      return json(res, 200, snap);
+    }
+
+    if (req.method === "POST" && pathname === "/api/shop-vote/cancel") {
+      return json(res, 200, ctx.shopVote.cancel());
+    }
+
+    if (req.method === "POST" && pathname === "/api/shop-vote/auto-start") {
+      const body = await readBody(req);
+      const payload = JSON.parse(body || "{}") as { enabled?: boolean };
+      ctx.shopVote.setAutoStart(Boolean(payload.enabled));
+      ctx.onShopSettingsChange?.();
+      return json(res, 200, ctx.shopVote.getSnapshot());
+    }
+
+    if (req.method === "POST" && pathname === "/api/shop-vote/mock") {
+      const body = await readBody(req);
+      const payload = JSON.parse(body || "{}") as { enabled?: boolean };
+      ctx.shopVote.setMockBotEnabled(Boolean(payload.enabled));
+      ctx.onShopSettingsChange?.();
+      return json(res, 200, ctx.shopVote.getSnapshot());
+    }
+
+    if (req.method === "POST" && pathname === "/api/shop-vote/skip") {
+      const snap = await ctx.shopVote.skip();
+      return json(res, 200, snap);
+    }
+
+    if (req.method === "GET" && pathname === "/api/shop-vote/settings") {
+      return json(res, 200, ctx.shopVote.getSettings());
+    }
+
+    if (req.method === "POST" && pathname === "/api/shop-vote/settings") {
+      const body = await readBody(req);
+      const payload = JSON.parse(body || "{}") as Record<string, unknown>;
+      const snap = ctx.shopVote.applySettings(payload);
+      ctx.onShopSettingsChange?.();
+      return json(res, 200, snap);
+    }
+
+    if (req.method === "POST" && pathname === "/api/shop-vote/durations") {
+      const body = await readBody(req);
+      const payload = JSON.parse(body || "{}") as {
+        categoryMs?: number;
+        tierMs?: number;
+        restartMs?: number;
+        categorySec?: number;
+        tierSec?: number;
+        restartSec?: number;
+      };
+      const categoryDurationMs =
+        typeof payload.categoryMs === "number"
+          ? payload.categoryMs
+          : typeof payload.categorySec === "number"
+            ? payload.categorySec * 1000
+            : undefined;
+      const tierDurationMs =
+        typeof payload.tierMs === "number"
+          ? payload.tierMs
+          : typeof payload.tierSec === "number"
+            ? payload.tierSec * 1000
+            : undefined;
+      const restartDelayMs =
+        typeof payload.restartMs === "number"
+          ? payload.restartMs
+          : typeof payload.restartSec === "number"
+            ? payload.restartSec * 1000
+            : undefined;
+      const snap = ctx.shopVote.setDurations({
+        categoryDurationMs,
+        tierDurationMs,
+        restartDelayMs,
+      });
+      ctx.onShopSettingsChange?.();
+      return json(res, 200, snap);
+    }
+
     if (req.method === "POST" && pathname === "/api/test-effect") {
       const body = await readBody(req);
       const payload = JSON.parse(body || "{}") as {
@@ -185,9 +363,14 @@ async function handleRequest(
       return;
     }
 
-    if (pathname === "/control" || pathname === "/overlay") {
-      const file = pathname === "/control" ? "control.html" : "overlay.html";
-      return serveStatic(res, join(publicDir, file));
+    if (pathname === "/control") {
+      return serveStatic(res, join(publicDir, "control.html"));
+    }
+    if (pathname === "/overlay") {
+      return serveStatic(res, join(publicDir, "overlay.html"));
+    }
+    if (pathname === "/overlay/shop") {
+      return serveStatic(res, join(publicDir, "overlay-shop.html"));
     }
 
     if (pathname.startsWith("/public/")) {
@@ -221,8 +404,21 @@ function serveStatic(res: ServerResponse, filePath: string): void {
 }
 
 function json(res: ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, { "Content-Type": "application/json" });
+  res.writeHead(status, {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+  });
   res.end(JSON.stringify(body));
+}
+
+function png(res: ServerResponse, body: Buffer): void {
+  res.writeHead(200, {
+    "Content-Type": "image/png",
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+    "Access-Control-Allow-Origin": "*",
+    "Content-Length": body.length,
+  });
+  res.end(body);
 }
 
 function readBody(req: IncomingMessage): Promise<string> {

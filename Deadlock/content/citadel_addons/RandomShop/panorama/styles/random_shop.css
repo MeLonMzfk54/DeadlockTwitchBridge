@@ -1,0 +1,445 @@
+/* Prettified by Source 2 Viewer 18.0.0.0 - https://valveresourceformat.github.io */
+
+﻿ #RandomNav .ShopNavigationTabBackground
+{
+	opacity-brush: gradient( linear, 0% 0%, 100% 0%, from( rgb(200, 80, 130) ), to( rgb(200, 80, 130) ) );
+}
+
+.CitadelHudHeroShop:not(.gShowingRandom) #RandomNav .ShopNavigationTabBackground
+{
+	opacity-brush: gradient( linear, 85% 0%, 100% 0%, from( rgb(200, 80, 130) ), color-stop( 0.5, rgb(160, 55, 100) ), to( rgb(100, 25, 60) ) );
+}
+
+.CitadelHudHeroShop:not(.gShowingRandom) #RandomNav.NavigationButton:hover .ShopNavigationTabBackground
+{
+	opacity-brush: gradient( linear, 80% 0%, 100% 0%, from( rgb(255, 130, 175) ), to( rgb(200, 80, 130) ) );
+}
+
+.gShowingRandom #RandomNav.NavigationButton
+{
+	height: 210px;
+	z-index: 2;
+}
+
+.gShowingRandom #RandomNav.NavigationButton .ShopNavigationTabBackground
+{
+	height: 230px;
+}
+
+.RSRandomTabIcon
+{
+	width: 70px;
+	height: 75px;
+	ignore-parent-flow: true;
+	background-image: url("s2r://panorama/images/hud/hud_icon_gold.vsvg");
+	background-size: 44%;
+	background-repeat: no-repeat;
+	background-position: center center;
+	opacity: 0.85;
+}
+
+.gShowingRandom #ShopModsListWeapon,.gShowingRandom #ShopModsListArmor,.gShowingRandom #ShopModsListTech,.gShowingRandom #ShopModsSelectedBuild,.gShowingRandom #ShopModsListAll,.gShowingRandom #SearchHeader,.gShowingRandom .HeroFavoritesHeaderLabel
+{
+	opacity: 0;
+	transform: translateY( -20px );
+}
+
+.gShowingRandom #ToggleContainer
+{
+	opacity: 0;
+}
+
+.gShowingRandom #ShopModListsContainer
+{
+	background-image: url("s2r://panorama/images/shop/catalog/catalog_shop_generic_bg_psd.vtex");
+}
+
+#RandomShopContent
+{
+	ignore-parent-flow: true;
+	width: 100%;
+	height: 100%;
+	z-index: 50;
+	flow-children: down;
+	padding: 28px 24px 24px 24px;
+	opacity: 0;
+	hittest: false;
+	transition-property: opacity;
+	transition-duration: 0.21s;
+}
+
+.gShowingRandom #RandomShopContent
+{
+	opacity: 1;
+	hittest: true;
+}
+
+.RSTitle
+{
+	font-size: 20px;
+	font-weight: bold;
+	text-transform: uppercase;
+	letter-spacing: 5px;
+	color: #d8c89a;
+	horizontal-align: center;
+	text-align: center;
+	margin-bottom: 4px;
+}
+
+.RSSubtitle
+{
+	font-size: 11px;
+	color: #4a5a6a;
+	horizontal-align: center;
+	text-align: center;
+	margin-bottom: 10px;
+}
+
+#RSCategoryFilter
+{
+	flow-children: right;
+	width: 100%;
+	margin-bottom: 14px;
+}
+
+.RSFilterBtn
+{
+	flow-children: right;
+	vertical-align: center;
+	width: fill-parent-flow( 1.0 );
+	height: 26px;
+	border-radius: 4px;
+	margin-right: 6px;
+	padding: 0px 8px;
+	border: 1px solid #1e2d48;
+	background-color: #0d1420;
+	transition-property: opacity, brightness;
+	transition-duration: 0.1s;
+}
+
+#RSFilterTech.RSFilterBtn
+{
+	margin-right: 0px;
+}
+
+.RSFilterBtn:hover
+{
+	brightness: 1.4;
+}
+
+.RSFilterDot
+{
+	width: 7px;
+	height: 7px;
+	border-radius: 50px;
+	vertical-align: center;
+	margin-right: 6px;
+}
+
+.RSFilterWeaponDot
+{
+	background-color: #d06828;
+}
+
+.RSFilterArmorDot
+{
+	background-color: #48944a;
+}
+
+.RSFilterTechDot
+{
+	background-color: #7840c8;
+}
+
+.RSFilterLabel
+{
+	font-size: 10px;
+	font-weight: bold;
+	text-transform: uppercase;
+	letter-spacing: 1px;
+	vertical-align: center;
+	color: #2a3a50;
+	transition-property: color;
+	transition-duration: 0.15s;
+}
+
+.RSFilterBtn.rs-filter-on .RSFilterLabel
+{
+	color: #b0c0d4;
+}
+
+#RSFilterWeapon.rs-filter-on
+{
+	border: 1px solid #d0682850;
+}
+
+#RSFilterArmor.rs-filter-on
+{
+	border: 1px solid #48944a50;
+}
+
+#RSFilterTech.rs-filter-on
+{
+	border: 1px solid #7840c850;
+}
+
+.RSFilterBtn.rs-filter-off
+{
+	opacity: 0.35;
+}
+
+.rs-mode-rolled #RSCategoryFilter
+{
+	opacity: 0.4;
+	hittest: false;
+}
+
+#RSTierButtons
+{
+	flow-children: down;
+	width: 100%;
+}
+
+.RSTierBtn
+{
+	width: 100%;
+	height: 62px;
+	flow-children: right;
+	margin-bottom: 8px;
+	border-radius: 5px;
+	background-color: #0f1622;
+	border: 1px solid #1a2840;
+	transition-property: brightness, pre-transform-scale2d;
+	transition-duration: 0.1s;
+	overflow: noclip;
+}
+
+.rs-mode-rolled .RSTierBtn
+{
+	opacity: 0.45;
+	hittest: false;
+}
+
+.RSTierBtn:hover
+{
+	brightness: 1.4;
+	pre-transform-scale2d: 1.02;
+	border: 1px solid #3a5878;
+}
+
+.RSTierBtn:active
+{
+	brightness: 0.8;
+	pre-transform-scale2d: 0.97;
+}
+
+.RSTierAccent
+{
+	width: 5px;
+	height: 100%;
+}
+
+.tier1Accent
+{
+	background-color: #4a8060;
+}
+
+.tier2Accent
+{
+	background-color: #3a62a0;
+}
+
+.tier3Accent
+{
+	background-color: #8048a0;
+}
+
+.tier4Accent
+{
+	background-color: #a07028;
+}
+
+.RSTierContent
+{
+	flow-children: right;
+	vertical-align: center;
+	padding: 0px 18px;
+	width: fill-parent-flow( 1.0 );
+}
+
+.RSTierLabel
+{
+	font-size: 15px;
+	font-weight: bold;
+	color: #b8c8d8;
+	vertical-align: center;
+	width: fill-parent-flow( 1.0 );
+}
+
+.RSTierCostRow
+{
+	flow-children: right;
+	vertical-align: center;
+}
+
+.RSSoulsIcon
+{
+	width: 14px;
+	height: 14px;
+	vertical-align: center;
+	margin-right: 5px;
+	background-image: url("s2r://panorama/images/hud/hud_icon_gold.vsvg");
+	background-size: contain;
+	background-repeat: no-repeat;
+	background-position: center center;
+	opacity: 0.75;
+}
+
+.RSTierCost
+{
+	font-size: 14px;
+	font-weight: semi-bold;
+	color: #e0c040;
+	vertical-align: center;
+}
+
+.RSNoItemsMsg
+{
+	font-size: 12px;
+	color: #b04040;
+	horizontal-align: center;
+	text-align: center;
+	margin-top: 10px;
+}
+
+#RSRolledView
+{
+	visibility: collapse;
+	flow-children: down;
+	width: 100%;
+	horizontal-align: center;
+	margin-top: 4px;
+	transition-property: opacity;
+	transition-duration: 0.2s;
+	opacity: 0;
+}
+
+.rs-mode-rolled #RSRolledView
+{
+	visibility: visible;
+	opacity: 1;
+}
+
+.RSDivider
+{
+	width: 100%;
+	height: 1px;
+	background-color: #1e2d48;
+	margin-bottom: 18px;
+	margin-top: 6px;
+}
+
+#RSBigIconWrapper
+{
+	width: 96px;
+	height: 96px;
+	horizontal-align: center;
+	background-color: #0a1020;
+	border: 1px solid #1e2d48;
+	border-radius: 6px;
+	margin-bottom: 14px;
+	box-shadow: 0px 0px 18px 5.0 #ffffff14;
+	overflow: noclip;
+	transition-property: pre-transform-scale2d, box-shadow;
+	transition-duration: 0.15s;
+}
+
+#RSRolledView:hover #RSBigIconWrapper
+{
+	pre-transform-scale2d: 1.06;
+	box-shadow: 0px 0px 26px 7.0 #f0d06055;
+}
+
+.RSOverlayImage
+{
+	width: 100%;
+	height: 100%;
+	background-size: contain;
+	background-repeat: no-repeat;
+	background-position: center center;
+}
+
+.RSItemName
+{
+	font-size: 17px;
+	font-weight: bold;
+	color: #dce8f8;
+	horizontal-align: center;
+	text-align: center;
+	margin-bottom: 6px;
+}
+
+.RSItemTierLabel
+{
+	font-size: 12px;
+	font-weight: semi-bold;
+	text-transform: uppercase;
+	letter-spacing: 2px;
+	horizontal-align: center;
+	text-align: center;
+}
+
+.RSItemTierLabel.rs-tier1
+{
+	color: #4a8060;
+}
+
+.RSItemTierLabel.rs-tier2
+{
+	color: #3a62a0;
+}
+
+.RSItemTierLabel.rs-tier3
+{
+	color: #8048a0;
+}
+
+.RSItemTierLabel.rs-tier4
+{
+	color: #a07028;
+}
+
+.RSPurchaseStatus
+{
+	font-size: 11px;
+	color: #5090c8;
+	horizontal-align: center;
+	text-align: center;
+	margin-top: 6px;
+}
+
+.rs-cant-afford
+{
+	opacity: 0.38;
+}
+
+.rs-cant-afford .RSTierCost
+{
+	color: #c05050;
+}
+
+.rs-no-items
+{
+	opacity: 0.28;
+}
+
+.rs-no-items .RSTierLabel
+{
+	color: #704040;
+}
+
+.rs-no-items .RSTierCost
+{
+	color: #704040;
+}
+

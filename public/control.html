@@ -203,6 +203,114 @@
       overflow: auto;
     }
     .payload-full { display: none; }
+    .tally-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+      gap: 8px;
+      margin: 10px 0;
+    }
+    .tally-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 10px 8px;
+      margin-top: 0;
+    }
+    .tally-btn .count {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .tally-btn.winner {
+      border-color: #2f8f5d;
+      background: #1f5f3f;
+    }
+    .pipeline {
+      max-height: 160px;
+      overflow-y: auto;
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 0.8rem;
+      color: var(--muted);
+      background: #121a26;
+      border-radius: 8px;
+      padding: 8px;
+      margin-top: 8px;
+    }
+    .pipeline div { margin: 2px 0; }
+    .inline-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .inline-actions button {
+      width: auto;
+      flex: 1 1 120px;
+      margin-top: 0;
+    }
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 10px 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .check-row input { width: auto; }
+    .shop-result {
+      margin-top: 10px;
+      padding: 10px;
+      background: #121a26;
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
+    .shop-result strong { color: var(--accent); }
+    .apply-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+      align-items: center;
+    }
+    .apply-row select,
+    .duration-row input,
+    .duration-row select {
+      background: #121a26;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+    .duration-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 8px 0 4px;
+      align-items: flex-end;
+    }
+    .duration-row label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      color: var(--muted);
+      font-size: 0.8rem;
+      flex: 1 1 90px;
+    }
+    .duration-row input,
+    .duration-row select {
+      width: 100%;
+    }
+    .recent-votes {
+      max-height: 120px;
+      overflow-y: auto;
+      font-size: 0.85rem;
+      color: var(--muted);
+      background: #121a26;
+      border-radius: 8px;
+      padding: 8px;
+      margin-top: 8px;
+    }
   </style>
 </head>
 <body>
@@ -220,6 +328,10 @@
         <div class="status-row">
           <span><span class="dot" id="twitchDot"></span>Twitch EventSub</span>
           <span id="twitchStatus">...</span>
+        </div>
+        <div class="status-row">
+          <span><span class="dot" id="chatDot"></span>Чат (голоса)</span>
+          <span id="chatStatus">...</span>
         </div>
         <div class="status-row">
           <span>Режим</span>
@@ -258,6 +370,7 @@
       </div>
       <div class="match-box" id="matchSnapshot">
         <div class="row"><span class="label">Фаза</span><span id="matchPhase">—</span></div>
+        <div class="row"><span class="label">Герой</span><span id="matchHero">—</span></div>
         <div class="row"><span class="label">Жизнь</span><span id="matchLife">—</span></div>
         <div class="row"><span class="label">Часы / счёт</span><span id="matchScore">—</span></div>
         <div class="row"><span class="label">Последний килл</span><span id="matchLastKill">—</span></div>
@@ -271,10 +384,167 @@
         <button class="filter" data-filter="score" onclick="setGameFilter('score')">score</button>
         <button class="filter" data-filter="announcement" onclick="setGameFilter('announcement')">announcement</button>
         <button class="filter" data-filter="raw" onclick="setGameFilter('raw')">raw</button>
+        <button class="filter" data-filter="shop" onclick="setGameFilter('shop')">shop</button>
         <button class="filter" data-filter="heartbeat" onclick="setGameFilter('heartbeat')">heartbeat</button>
       </div>
       <button class="danger" style="width:auto;margin:0 0 8px" onclick="clearGameEvents()">Очистить</button>
       <div class="events tall" id="gameEvents"><div class="event">Ожидание событий от мода…</div></div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h2>Random Shop (голосование / тест бота)</h2>
+      <div class="status-row">
+        <span><span class="dot" id="shopDot"></span>Магазин UI</span>
+        <span id="shopOpenStatus">—</span>
+      </div>
+      <div class="status-row">
+        <span>Стадия</span>
+        <span id="shopStage">idle</span>
+      </div>
+      <div class="status-row">
+        <span>Таймер</span>
+        <span id="shopTimer">—</span>
+      </div>
+      <div class="status-row">
+        <span>Команда</span>
+        <span id="shopSeq">0</span>
+      </div>
+      <label class="check-row">
+        <input type="checkbox" id="shopAutoStart" onchange="setShopAutoStart(this.checked)" />
+        После покупки — новый цикл
+      </label>
+      <label class="check-row">
+        <input type="checkbox" id="shopAllowHudStart" onchange="setShopSettingsFromUi()" />
+        Кнопка Start/Skip в HUD магазина
+      </label>
+      <label class="check-row">
+        <input type="checkbox" id="shopHudCanRestart" onchange="setShopSettingsFromUi()" />
+        HUD Restart во время голосования
+      </label>
+      <label class="check-row">
+        <input type="checkbox" id="shopMockBot" onchange="setShopMockBot(this.checked)" />
+        Mock-бот (случайные голоса)
+      </label>
+      <label class="check-row">
+        <input type="checkbox" id="shopRequireBang" onchange="setShopSettingsFromUi()" />
+        Требовать <code>!</code> в чате (<code>!w</code>, <code>!1</code>)
+      </label>
+      <label class="check-row">
+        <input type="checkbox" id="shopChatAnnounce" onchange="setShopSettingsFromUi()" />
+        Писать в чат при старте голосования
+      </label>
+      <div style="margin:8px 0 0">
+        <label for="shopChatAnnounceCategory" style="display:block;font-size:0.85rem;color:var(--muted);margin-bottom:4px">
+          Текст (категория) — плейсхолдеры: <code>{options}</code> <code>{seconds}</code> <code>{prefix}</code>
+        </label>
+        <textarea
+          id="shopChatAnnounceCategory"
+          rows="2"
+          style="width:100%;resize:vertical;font:inherit;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text)"
+          onchange="setShopSettingsFromUi()"
+        ></textarea>
+      </div>
+      <div style="margin:8px 0 0">
+        <label for="shopChatAnnounceTier" style="display:block;font-size:0.85rem;color:var(--muted);margin-bottom:4px">
+          Текст (тир) — плюс <code>{category}</code>
+        </label>
+        <textarea
+          id="shopChatAnnounceTier"
+          rows="2"
+          style="width:100%;resize:vertical;font:inherit;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text)"
+          onchange="setShopSettingsFromUi()"
+        ></textarea>
+      </div>
+      <div class="duration-row">
+        <label>
+          Категория (сек)
+          <input id="shopCatDuration" type="number" min="1" max="180" step="1" value="25" onchange="setShopDurations()" />
+        </label>
+        <label>
+          Тир (сек)
+          <input id="shopTierDuration" type="number" min="1" max="180" step="1" value="25" onchange="setShopDurations()" />
+        </label>
+        <label>
+          Пауза после покупки (сек)
+          <input id="shopRestartDuration" type="number" min="1" max="180" step="1" value="25" onchange="setShopDurations()" />
+        </label>
+      </div>
+      <div class="duration-row">
+        <label>
+          Цикл автостарта
+          <select id="shopStartMode" onchange="setShopSettingsFromUi()">
+            <option value="full">Полный (кат → тир)</option>
+            <option value="category">Только категория</option>
+            <option value="tier">Только тир</option>
+          </select>
+        </label>
+        <label>
+          Пауза перед apply (сек)
+          <input id="shopApplyDelay" type="number" min="0" max="60" step="1" value="0" onchange="setShopSettingsFromUi()" />
+        </label>
+        <label>
+          Mock интервал (мс)
+          <input id="shopMockInterval" type="number" min="100" max="10000" step="50" value="900" onchange="setShopSettingsFromUi()" />
+        </label>
+        <label>
+          Оверлей после ролла (сек)
+          <input id="shopOverlayHold" type="number" min="1" max="60" step="1" value="8" onchange="setShopSettingsFromUi()" />
+        </label>
+      </div>
+      <div class="duration-row">
+        <label class="check-row" style="margin:0">
+          <input type="checkbox" id="shopCatWeapon" checked onchange="setShopCategoriesFromUi()" />
+          Weapon
+        </label>
+        <label class="check-row" style="margin:0">
+          <input type="checkbox" id="shopCatVitality" checked onchange="setShopCategoriesFromUi()" />
+          Vitality
+        </label>
+        <label class="check-row" style="margin:0">
+          <input type="checkbox" id="shopCatSpirit" checked onchange="setShopCategoriesFromUi()" />
+          Spirit
+        </label>
+        <label>
+          Мин. тир
+          <input id="shopMinTier" type="number" min="1" max="4" step="1" value="1" onchange="setShopSettingsFromUi()" />
+        </label>
+        <label>
+          Макс. тир
+          <input id="shopMaxTier" type="number" min="1" max="4" step="1" value="4" onchange="setShopSettingsFromUi()" />
+        </label>
+      </div>
+      <p style="margin:8px 0 0;font-size:0.85rem;color:var(--muted)">
+        Настройки сохраняются в <code>config/shop-vote.json</code> и переживают рестарт bridge.
+      </p>
+      <div class="inline-actions">
+        <button class="primary" onclick="shopStart('full')">Полный цикл (кат → тир → apply)</button>
+        <button onclick="shopStart('category')">Только категория</button>
+        <button onclick="shopStart('tier')">Только тир</button>
+        <button class="danger" onclick="shopCancel()">Cancel</button>
+        <button class="danger" onclick="shopSkip()">Skip покупки</button>
+      </div>
+      <h3 style="margin:16px 0 4px;font-size:1rem">Категория</h3>
+      <div class="tally-grid" id="shopCatTally"></div>
+      <h3 style="margin:12px 0 4px;font-size:1rem">Тир</h3>
+      <div class="tally-grid" id="shopTierTally"></div>
+      <div class="apply-row">
+        <select id="applyCategory">
+          <option value="weapon">Weapon</option>
+          <option value="vitality">Vitality</option>
+          <option value="spirit">Spirit</option>
+        </select>
+        <select id="applyTier">
+          <option value="1">Tier 1</option>
+          <option value="2">Tier 2</option>
+          <option value="3">Tier 3</option>
+          <option value="4">Tier 4</option>
+        </select>
+        <button class="primary" style="width:auto;margin:0" onclick="shopApplyNow()">Применить сейчас</button>
+      </div>
+      <div class="shop-result" id="shopResult">Нет ролла / покупки</div>
+      <h3 style="margin:12px 0 4px;font-size:1rem">Последние голоса (чат / панель)</h3>
+      <div class="recent-votes" id="shopRecentVotes">Нет голосов</div>
+      <div class="pipeline" id="shopPipeline"><div>Ожидание…</div></div>
     </div>
 
     <div class="card" style="margin-top:16px">
@@ -292,9 +562,19 @@
     </div>
 
     <div class="hint">
-      Для телеметрии: установите addon и добавьте include <code>twitch_bridge_events.js</code> в рабочий HUD (без полного override), launch option <code>-condebug</code>,
-      откройте sandbox и смотрите карточку «События игры». HTTP: <code>POST /api/game-event</code>.
-      Для OBS используйте <a href="/overlay" style="color:var(--accent)">/overlay</a>.
+      Для телеметрии: addon с <code>twitch_bridge_events.js</code>, launch option <code>-condebug</code>,
+      карточка «События игры». HTTP: <code>POST /api/game-event</code>.
+      Random Shop (live): VPK из <code>twitch_minimap_fx</code> —
+      <code>citadel_hud_hero_shop.xml</code> + <code>twitch_bridge_shop.js</code> (mod 1.9.0+);
+      выключите отдельный pak02 Random Shop.
+      Голоса чата: scope <code>user:read:chat</code> (точка «Чат» выше); команды
+      <code>w|v|s</code> / <code>1–4</code> (см. README).
+      API: <code>/api/shop-vote</code>, <code>/start</code>, <code>/cast</code>, <code>/skip</code>,
+      <code>/mock</code>, <code>/durations</code>, <code>/settings</code>, <code>/apply</code>; HUD PNG
+      <code>/api/shop-vote-hud.png</code> (слоты cats|t12|t34|meta|cmd).
+      Настройки: <code>config/shop-vote.json</code>. Гайд: <code>RANDOM_SHOP.md</code>.
+      OBS: <a href="/overlay" style="color:var(--accent)">/overlay</a> (тосты),
+      <a href="/overlay/shop" style="color:var(--accent)">/overlay/shop</a> (голосование).
     </div>
   </div>
 
@@ -344,6 +624,9 @@
       if (gameFilter === "death") {
         return evt.type === "local_death" || evt.type === "local_respawn";
       }
+      if (gameFilter === "shop") {
+        return String(evt.type || "").startsWith("shop_");
+      }
       return evt.type === gameFilter;
     }
 
@@ -351,6 +634,7 @@
       const m = match || {};
       const hb = heartbeat || {};
       document.getElementById("matchPhase").textContent = m.phase || "—";
+      document.getElementById("matchHero").textContent = m.hero || hb.hero || "—";
       let life = "—";
       if (typeof m.dead === "boolean") {
         if (m.dead) {
@@ -465,8 +749,12 @@
       const status = await api("/api/status");
       setDot("gameDot", status.gameConnected);
       setDot("twitchDot", status.twitchConnected);
+      setDot("chatDot", Boolean(status.chatConnected));
       document.getElementById("gameStatus").textContent = status.gameConnected ? "Подключено" : "Нет соединения";
       document.getElementById("twitchStatus").textContent = status.twitchConnected ? "Подключено" : (status.testMode ? "Test mode" : "Нет соединения");
+      document.getElementById("chatStatus").textContent = status.testMode
+        ? "Test mode (мок / панель)"
+        : (status.chatConnected ? "Подключено" : "Нет (нужен user:read:chat)");
       document.getElementById("modeStatus").textContent = status.testMode ? "Тест" : "Twitch";
       document.getElementById("queueStatus").textContent = status.queueLength;
 
@@ -553,11 +841,377 @@
       await refreshStatus();
     }
 
+    let lastShopSnap = null;
+
+    function renderShopVote(snap) {
+      lastShopSnap = snap || {};
+      const s = lastShopSnap;
+      setDot("shopDot", Boolean(s.shopOpen));
+      document.getElementById("shopOpenStatus").textContent = s.shopOpen ? "открыт" : "закрыт";
+      document.getElementById("shopStage").textContent = s.stage || "idle";
+      let seqLabel = String(s.lastSeq ?? 0);
+      if (s.lastCfg) {
+        if (s.lastCfg.cat === 0) {
+          seqLabel = `seq ${s.lastCfg.seq} · skip`;
+        } else {
+          seqLabel = s.cmdReceived
+            ? `seq ${s.lastCfg.seq} · rolled`
+            : `seq ${s.lastCfg.seq} · waiting shop_rolled`;
+        }
+      }
+      document.getElementById("shopSeq").textContent = seqLabel;
+      const auto = document.getElementById("shopAutoStart");
+      if (auto && auto.checked !== Boolean(s.autoStart)) {
+        auto.checked = Boolean(s.autoStart);
+      }
+      const mock = document.getElementById("shopMockBot");
+      if (mock && mock.checked !== Boolean(s.mockBotEnabled)) {
+        mock.checked = Boolean(s.mockBotEnabled);
+      }
+      syncDurationInput("shopCatDuration", s.categoryDurationMs);
+      syncDurationInput("shopTierDuration", s.tierDurationMs);
+      syncDurationInput("shopRestartDuration", s.restartDelayMs);
+      syncShopSettingsUi(s.settings || {});
+
+      let timerLabel = "—";
+      if (s.stageEndsAt && (s.stage === "voting_category" || s.stage === "voting_tier")) {
+        const left = Math.max(0, Math.ceil((s.stageEndsAt - Date.now()) / 1000));
+        const delayNote =
+          s.winnerCategory && s.winnerTier && s.stage === "voting_tier" && left > 0
+            ? ""
+            : "";
+        timerLabel = left + "s" + (s.mockBotActive ? " · mock bot" : "") + delayNote;
+      } else if (s.stageEndsAt && s.winnerCategory && s.winnerTier && s.stage !== "applying" && s.stage !== "idle") {
+        const left = Math.max(0, Math.ceil((s.stageEndsAt - Date.now()) / 1000));
+        if (left > 0) timerLabel = "apply через " + left + "s";
+      } else if (s.stage === "applying") {
+        if (s.cmdReceived) {
+          timerLabel = "shop_cmd received";
+        } else if (s.lastWaiting && s.lastWaiting.reason) {
+          const wr = String(s.lastWaiting.reason);
+          timerLabel = wr === "dom_not_ready"
+            ? "ожидание DOM магазина…"
+            : wr === "awaiting_apply"
+              ? "мод получил cmd, ждём ролл…"
+              : "HTTP pending… (" + wr + ")";
+        } else {
+          timerLabel = "HTTP pending…";
+        }
+      } else if (s.stage === "rolled") {
+        timerLabel = "rolled — purchasing…";
+      } else if (s.stage === "waiting_shop") {
+        const reason = s.lastWaiting && s.lastWaiting.reason ? String(s.lastWaiting.reason) : "awaiting_shop_range";
+        timerLabel = reason === "dom_not_ready" || reason === "no_items"
+          ? "roll pending: " + reason
+          : "подойди к магазину";
+      } else if (s.stage === "purchased") {
+        timerLabel = "куплено";
+      } else if (s.stage === "failed") {
+        timerLabel = "ошибка";
+      }
+      document.getElementById("shopTimer").textContent = timerLabel;
+
+      const catTally = s.categoryTally || {};
+      const catPct = s.categoryPct || {};
+      const winnerCat = s.winnerCategory;
+      document.getElementById("shopCatTally").innerHTML = ["weapon", "vitality", "spirit"].map((opt) => {
+        const label = opt === "weapon" ? "Weapon" : opt === "vitality" ? "Vitality" : "Spirit";
+        const win = winnerCat === opt ? " winner" : "";
+        const pct = catPct[opt] != null ? catPct[opt] : 0;
+        return `<button class="tally-btn${win}" onclick="shopCast('${opt}')">
+          <span>${label}</span>
+          <span class="count">${catTally[opt] || 0} (${pct}%)</span>
+        </button>`;
+      }).join("");
+
+      const tierTally = s.tierTally || {};
+      const tierPct = s.tierPct || {};
+      const winnerTier = s.winnerTier != null ? String(s.winnerTier) : null;
+      document.getElementById("shopTierTally").innerHTML = ["1", "2", "3", "4"].map((opt) => {
+        const win = winnerTier === opt ? " winner" : "";
+        const pct = tierPct[opt] != null ? tierPct[opt] : 0;
+        return `<button class="tally-btn${win}" onclick="shopCast('${opt}')">
+          <span>T${opt}</span>
+          <span class="count">${tierTally[opt] || 0} (${pct}%)</span>
+        </button>`;
+      }).join("");
+
+      const resultEl = document.getElementById("shopResult");
+      const parts = [];
+      if (s.hero) {
+        parts.push(`Герой: ${escapeHtml(s.hero)}`);
+      }
+      if (s.lastCfg) {
+        if (s.lastCfg.cat === 0) {
+          parts.push(`Skip/cancel: seq=${s.lastCfg.seq} (cat=0 tier=0)`);
+        } else {
+          const catNames = { 1: "Weapon", 2: "Vitality", 3: "Spirit" };
+          const cmdState = s.cmdReceived
+            ? "rolled"
+            : (s.stage === "applying" ? "waiting for shop_rolled…" : "HTTP pending");
+          parts.push(`${cmdState}: seq=${s.lastCfg.seq} ${catNames[s.lastCfg.cat] || s.lastCfg.cat} T${s.lastCfg.tier}`);
+        }
+      }
+      if (s.lastRolled) {
+        parts.push(`Rolled: <strong>${escapeHtml(s.lastRolled.name || s.lastRolled.cls || "?")}</strong> T${escapeHtml(s.lastRolled.tier || "?")}`);
+      }
+      if (s.lastWaiting) {
+        const wr = String(s.lastWaiting.reason || "?");
+        if (wr === "dom_not_ready" || wr === "no_items" || wr === "roll_timeout") {
+          parts.push(`Roll не дошёл: <strong>${escapeHtml(wr)}</strong>`);
+        } else if (wr === "awaiting_apply") {
+          parts.push(`Мод видит cmd (seq=${escapeHtml(s.lastWaiting.pendingSeq || s.lastWaiting.seq || "?")}), ждём ролл…`);
+        } else {
+          parts.push(`Ожидание покупки: <strong>${escapeHtml(wr)}</strong>`);
+        }
+      }
+      if (s.lastPurchase) {
+        parts.push(s.lastPurchase.ok ? "Purchase: <strong>OK</strong>" : "Purchase: <strong>fail/timeout</strong>");
+      }
+      if (s.lastError) {
+        parts.push(`Error: ${escapeHtml(s.lastError.reason || JSON.stringify(s.lastError))}`);
+      }
+      resultEl.innerHTML = parts.length ? parts.join("<br>") : "Нет ролла / покупки";
+
+      const recentEl = document.getElementById("shopRecentVotes");
+      const recent = s.recentVotes || [];
+      recentEl.innerHTML = recent.length
+        ? recent.map((v) => {
+            const who = v.userId ? escapeHtml(v.userId) : "панель";
+            return `<div>${escapeHtml(v.option)} · ${who}</div>`;
+          }).join("")
+        : "Нет голосов";
+
+      const pipe = document.getElementById("shopPipeline");
+      const lines = s.pipeline || [];
+      pipe.innerHTML = lines.length
+        ? lines.map((l) => `<div>${escapeHtml(l)}</div>`).join("")
+        : "<div>Ожидание…</div>";
+    }
+
+    function syncDurationInput(id, ms) {
+      const el = document.getElementById(id);
+      if (!el || document.activeElement === el) return;
+      const sec = Math.max(1, Math.round((Number(ms) || 25000) / 1000));
+      if (Number(el.value) !== sec) el.value = String(sec);
+    }
+
+    function syncMsInput(id, ms, fallback) {
+      const el = document.getElementById(id);
+      if (!el || document.activeElement === el) return;
+      const v = Math.round(Number(ms) || fallback);
+      if (Number(el.value) !== v) el.value = String(v);
+    }
+
+    function syncShopSettingsUi(cfg) {
+      const bang = document.getElementById("shopRequireBang");
+      if (bang && document.activeElement !== bang) {
+        bang.checked = Boolean(cfg.requireBangPrefix);
+      }
+      const chatAnn = document.getElementById("shopChatAnnounce");
+      if (chatAnn && document.activeElement !== chatAnn) {
+        chatAnn.checked = cfg.chatAnnounceEnabled !== false;
+      }
+      const annCat = document.getElementById("shopChatAnnounceCategory");
+      if (annCat && document.activeElement !== annCat) {
+        const v = typeof cfg.chatAnnounceCategory === "string" ? cfg.chatAnnounceCategory : "";
+        if (annCat.value !== v) annCat.value = v;
+      }
+      const annTier = document.getElementById("shopChatAnnounceTier");
+      if (annTier && document.activeElement !== annTier) {
+        const v = typeof cfg.chatAnnounceTier === "string" ? cfg.chatAnnounceTier : "";
+        if (annTier.value !== v) annTier.value = v;
+      }
+      const allowHud = document.getElementById("shopAllowHudStart");
+      if (allowHud && document.activeElement !== allowHud) {
+        allowHud.checked = cfg.allowHudStart !== false;
+      }
+      const hudRestart = document.getElementById("shopHudCanRestart");
+      if (hudRestart && document.activeElement !== hudRestart) {
+        hudRestart.checked = cfg.hudCanRestart !== false;
+      }
+      const mode = document.getElementById("shopStartMode");
+      if (mode && document.activeElement !== mode) {
+        const v = cfg.defaultStartMode || "full";
+        if (mode.value !== v) mode.value = v;
+      }
+      const applySec = Math.max(0, Math.round((Number(cfg.applyDelayMs) || 0) / 1000));
+      const applyEl = document.getElementById("shopApplyDelay");
+      if (applyEl && document.activeElement !== applyEl && Number(applyEl.value) !== applySec) {
+        applyEl.value = String(applySec);
+      }
+      syncMsInput("shopMockInterval", cfg.mockBotIntervalMs, 900);
+      const holdSec = Math.max(1, Math.round((Number(cfg.overlayHoldMs) || 8000) / 1000));
+      const holdEl = document.getElementById("shopOverlayHold");
+      if (holdEl && document.activeElement !== holdEl && Number(holdEl.value) !== holdSec) {
+        holdEl.value = String(holdSec);
+      }
+      const cats = Array.isArray(cfg.enabledCategories)
+        ? cfg.enabledCategories
+        : ["weapon", "vitality", "spirit"];
+      const map = {
+        shopCatWeapon: "weapon",
+        shopCatVitality: "vitality",
+        shopCatSpirit: "spirit",
+      };
+      for (const [id, key] of Object.entries(map)) {
+        const el = document.getElementById(id);
+        if (!el || document.activeElement === el) continue;
+        const on = cats.includes(key);
+        if (el.checked !== on) el.checked = on;
+      }
+      const minEl = document.getElementById("shopMinTier");
+      const maxEl = document.getElementById("shopMaxTier");
+      if (minEl && document.activeElement !== minEl) {
+        const v = Math.min(4, Math.max(1, Number(cfg.minTier) || 1));
+        if (Number(minEl.value) !== v) minEl.value = String(v);
+      }
+      if (maxEl && document.activeElement !== maxEl) {
+        const v = Math.min(4, Math.max(1, Number(cfg.maxTier) || 4));
+        if (Number(maxEl.value) !== v) maxEl.value = String(v);
+      }
+    }
+
+    async function postShopSettings(partial) {
+      const snap = await api("/api/shop-vote/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(partial),
+      });
+      renderShopVote(snap);
+      return snap;
+    }
+
+    async function setShopSettingsFromUi() {
+      const applySec = Number(document.getElementById("shopApplyDelay").value);
+      const holdSec = Number(document.getElementById("shopOverlayHold").value);
+      const minTier = Number(document.getElementById("shopMinTier").value);
+      const maxTier = Number(document.getElementById("shopMaxTier").value);
+      await postShopSettings({
+        requireBangPrefix: document.getElementById("shopRequireBang").checked,
+        allowHudStart: document.getElementById("shopAllowHudStart").checked,
+        hudCanRestart: document.getElementById("shopHudCanRestart").checked,
+        chatAnnounceEnabled: document.getElementById("shopChatAnnounce").checked,
+        chatAnnounceCategory: document.getElementById("shopChatAnnounceCategory").value,
+        chatAnnounceTier: document.getElementById("shopChatAnnounceTier").value,
+        defaultStartMode: document.getElementById("shopStartMode").value,
+        applyDelayMs: Math.max(0, Math.round((Number.isFinite(applySec) ? applySec : 0) * 1000)),
+        mockBotIntervalMs: Number(document.getElementById("shopMockInterval").value),
+        overlayHoldMs: Math.max(1000, Math.round((Number.isFinite(holdSec) ? holdSec : 8) * 1000)),
+        minTier,
+        maxTier,
+      });
+    }
+
+    async function setShopCategoriesFromUi() {
+      const enabled = [];
+      if (document.getElementById("shopCatWeapon").checked) enabled.push("weapon");
+      if (document.getElementById("shopCatVitality").checked) enabled.push("vitality");
+      if (document.getElementById("shopCatSpirit").checked) enabled.push("spirit");
+      if (enabled.length === 0) {
+        alert("Нужна хотя бы одна категория");
+        // Re-sync from last snap
+        if (lastShopSnap) syncShopSettingsUi(lastShopSnap.settings || {});
+        return;
+      }
+      await postShopSettings({ enabledCategories: enabled });
+    }
+
+    async function refreshShopVote() {
+      try {
+        const snap = await api("/api/shop-vote");
+        renderShopVote(snap);
+      } catch (e) {
+        /* ignore while server boots */
+      }
+    }
+
+    async function shopStart(stage) {
+      const snap = await api("/api/shop-vote/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage }),
+      });
+      renderShopVote(snap);
+    }
+
+    async function shopCancel() {
+      const snap = await api("/api/shop-vote/cancel", { method: "POST" });
+      renderShopVote(snap);
+    }
+
+    async function shopSkip() {
+      const snap = await api("/api/shop-vote/skip", { method: "POST" });
+      renderShopVote(snap);
+    }
+
+    async function shopCast(option) {
+      try {
+        const snap = await api("/api/shop-vote/cast", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ option }),
+        });
+        renderShopVote(snap);
+      } catch (e) {
+        const msg = e.message || String(e);
+        // Ignore cast after voting ended — tally buttons stay visible during applying.
+        if (/Cannot cast vote in stage/i.test(msg)) {
+          console.warn("[shop] cast ignored:", msg);
+          return;
+        }
+        alert(msg);
+      }
+    }
+
+    async function shopApplyNow() {
+      const category = document.getElementById("applyCategory").value;
+      const tier = Number(document.getElementById("applyTier").value);
+      const snap = await api("/api/shop-vote/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category, tier }),
+      });
+      renderShopVote(snap);
+    }
+
+    async function setShopAutoStart(enabled) {
+      const snap = await api("/api/shop-vote/auto-start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
+      });
+      renderShopVote(snap);
+    }
+
+    async function setShopMockBot(enabled) {
+      const snap = await api("/api/shop-vote/mock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
+      });
+      renderShopVote(snap);
+    }
+
+    async function setShopDurations() {
+      const categorySec = Number(document.getElementById("shopCatDuration").value);
+      const tierSec = Number(document.getElementById("shopTierDuration").value);
+      const restartSec = Number(document.getElementById("shopRestartDuration").value);
+      const snap = await api("/api/shop-vote/durations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ categorySec, tierSec, restartSec }),
+      });
+      renderShopVote(snap);
+    }
+
     loadEffects();
     refreshStatus();
     refreshGameEvents();
+    refreshShopVote();
     setInterval(refreshStatus, 2000);
     setInterval(refreshGameEvents, 750);
+    setInterval(refreshShopVote, 500);
   </script>
 </body>
 </html>

@@ -1,0 +1,814 @@
+/* Prettified by Source 2 Viewer 18.0.0.0 - https://valveresourceformat.github.io */
+
+.UniversalModOverlay
+{
+	width: 41px;
+	height: 29px;
+	margin-right: 6px;
+	margin-bottom: 3px;
+}
+
+#RSIconImage
+{
+	width: 100%;
+	height: 100%;
+	background-position: center center;
+	background-repeat: no-repeat;
+	background-size: contain;
+}
+
+.activeReload-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/active_reload_psd.vtex");
+}
+
+.armorBreakingBullets-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/armor_piercing_rounds_psd.vtex");
+}
+
+.bansheeSlugs-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/crippling_headshot_psd.vtex");
+}
+
+.berserker-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/berserker_psd.vtex");
+}
+
+.bulletArmorReductionAura-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/hunters_aura_psd.vtex");
+}
+
+.bulletDamageAura-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/heroic_aura_psd.vtex");
+}
+
+.closeRange-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/close_quarters_psd.vtex");
+}
+
+.closeRange1-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/weighted_shots_psd.vtex");
+}
+
+.cloakingDevice-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/shadow_weave_psd.vtex");
+}
+
+.critshot-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/lucky_shot_psd.vtex");
+}
+
+.electrifiedBullets1-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/tesla_bullets_psd.vtex");
+}
+
+.electrifiedBullets-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/capacitor_psd.vtex");
+}
+
+.empBullets-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/silencer_psd.vtex");
+}
+
+.explosiveBullets-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/mystic_shot_psd.vtex");
+}
+
+.fervor-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/frenzy_psd.vtex");
+}
+
+.fireRatePlus-style.ShopModsListWeapon #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/swift_striker_psd.vtex");
+}
+
+.fireRatePlusPlus-style.ShopModsListWeapon #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/burst_fire_psd.vtex");
+}
+
+.fleetfootBoots-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/fleetfoot_psd.vtex");
+}
+
+.glassCannon-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/glass_cannon_psd.vtex");
+}
+
+.headhunter-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/headhunter_psd.vtex");
+}
+
+.headshotBooster-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/headshot_booster_psd.vtex");
+}
+
+.headshotBooster1-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/weakening_headshot_psd.vtex");
+}
+
+.hollowPoint-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/hollow_point_psd.vtex");
+}
+
+.clipSize-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/basic_magazine_psd.vtex");
+}
+
+.intensifyingClip-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/intensifying_magazine_psd.vtex");
+}
+
+.item_gadget-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/blood_tribute_psd.vtex");
+}
+
+.item_gadget_enemy-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/cultist_sacrifice_psd.vtex");
+}
+
+.kineticSash-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/kinetic_dash_psd.vtex");
+}
+
+.longRange-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/long_range_psd.vtex");
+}
+
+.longshot-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/sharp_shooter_psd.vtex");
+}
+
+.magicOverflow-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/spiritual_overflow_psd.vtex");
+}
+
+.medicBullets-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/restorative_shot_psd.vtex");
+}
+
+.meleeCharge-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/melee_charge_psd.vtex");
+}
+
+.meleeCharge1-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/crushing_fists_psd.vtex");
+}
+
+.pointBlank-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/point_blank_psd.vtex");
+}
+
+.pristineEmblem-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/opening_rounds_psd.vtex");
+}
+
+.rapidRounds-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/rapid_rounds_psd.vtex");
+}
+
+.reaperRounds-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/monster_rounds_psd.vtex");
+}
+
+.reinforcingCasings-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/escalating_resilience_psd.vtex");
+}
+
+.ricochet-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/ricochet_psd.vtex");
+}
+
+.slowingBullets-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/slowing_bullets_psd.vtex");
+}
+
+.spellslingerHeadshots-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/spellslinger_headshots_psd.vtex");
+}
+
+.techGrenade-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/alchemical_fire_psd.vtex");
+}
+
+.techResistShredder-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/spirit_shredder_bullets_psd.vtex");
+}
+
+.titanicMagazine-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/split_shot_psd.vtex");
+}
+
+.titanicMagazine1-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/titanic_magazine_psd.vtex");
+}
+
+.toxicBullets-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/toxic_bullets_psd.vtex");
+}
+
+.highVelocityMag-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/high_velocity_rounds_psd.vtex");
+}
+
+.absorbingArmor-style.ShopModsListWeapon #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/recharging_rounds_psd.vtex");
+}
+
+.item_passive-style.ShopModsListWeapon #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/backstabber_psd.vtex");
+}
+
+.item_passive1-style.ShopModsListWeapon #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/express_shot_psd.vtex");
+}
+
+.item_passive2-style.ShopModsListWeapon #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/spell_slinger_psd.vtex");
+}
+
+.fireRatePlus-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/swift_striker_psd.vtex");
+}
+
+.fireRatePlus1-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/weapon/alchemical_seal_psd.vtex");
+}
+
+.absorbingArmor-style.ShopModsListArmor #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/plated_armor_psd.vtex");
+}
+
+.absorbingArmor1-style.ShopModsListArmor #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/witchmail_psd.vtex");
+}
+
+.boxingGlove-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/lifestrike_psd.vtex");
+}
+
+.bulletShield-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/grit_psd.vtex");
+}
+
+.bulletShield1-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/battle_vest_psd.vtex");
+}
+
+.bulletShield2-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/spirit_shielding_psd.vtex");
+}
+
+.bulletShield3-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/weapon_shielding_psd.vtex");
+}
+
+.bulletShield4-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/diviners_kevlar_psd.vtex");
+}
+
+.healthSstealingBullets-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/bullet_lifesteal_psd.vtex");
+}
+
+.cardioCalibrator-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/enduring_speed_psd.vtex");
+}
+
+.colossus-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/colossus_psd.vtex");
+}
+
+.debuffReducer-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/debuff_reducer_psd.vtex");
+}
+
+.debuffRemover-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/debuff_remover_psd.vtex");
+}
+
+.endurance-style.ShopModsListArmor #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/extra_regen_psd.vtex");
+}
+
+.healBuff-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/healing_tempo_psd.vtex");
+}
+
+.healbane-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/healbane_psd.vtex");
+}
+
+.item_passive-style.ShopModsListArmor #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/indomitable_psd.vtex");
+}
+
+.item_passive1-style.ShopModsListArmor #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/spellbreaker_psd.vtex");
+}
+
+.healthNova-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/healing_nova_psd.vtex");
+}
+
+.healthStealingBullets-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/bullet_lifesteal_psd.vtex");
+}
+
+.healthStealingTech-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/spirit_lifesteal_psd.vtex");
+}
+
+.healingBooster-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/healing_booster_psd.vtex");
+}
+
+.improvedBulletArmor-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/bullet_resilience_psd.vtex");
+}
+
+.improvedStamina-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/extra_stamina_psd.vtex");
+}
+
+.infuser-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/infuser_psd.vtex");
+}
+
+.inhibitor-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/inhibitor_psd.vtex");
+}
+
+.juggernaut-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/juggernaut_psd.vtex");
+}
+
+.lastStand-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/return_fire_psd.vtex");
+}
+
+.leech-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/leech_psd.vtex");
+}
+
+.lifestrikeGauntlets-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/melee_lifesteal_psd.vtex");
+}
+
+.medicBeam-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/rescue_beam_psd.vtex");
+}
+
+.metalSkin-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/metal_skin_psd.vtex");
+}
+
+.parryRebuttal-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/rebuttal_psd.vtex");
+}
+
+.parryRebuttal1-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/counterspell_psd.vtex");
+}
+
+.phantomStrike-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/phantom_strike_psd.vtex");
+}
+
+.restorativeLocket-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/restorative_locket_psd.vtex");
+}
+
+.revitalizer-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/fortitude_psd.vtex");
+}
+
+.rocketBooster-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/majestic_leap_psd.vtex");
+}
+
+.savior-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/guardian_ward_psd.vtex");
+}
+
+.savior1-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/divine_barrier_psd.vtex");
+}
+
+.siphon_bullets-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/siphon_bullets_psd.vtex");
+}
+
+.sprintBooster-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/sprint_boots_psd.vtex");
+}
+
+.sprintBooster1-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/trophy_collector_psd.vtex");
+}
+
+.stimPak-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/healing_rite_psd.vtex");
+}
+
+.superiorStamina-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/stamina_mastery_psd.vtex");
+}
+
+.surgingPower-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/fury_trance_psd.vtex");
+}
+
+.surgingPower1-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/vampiric_burst_psd.vtex");
+}
+
+.techArmorPulse-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/enchanters_emblem_psd.vtex");
+}
+
+.techPurge-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/spirit_resilience_psd.vtex");
+}
+
+.tormentAura-style.ShopModsListArmor #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/cheat_death_psd.vtex");
+}
+
+.unstoppable-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/unstoppable_psd.vtex");
+}
+
+.upgrade_health-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/extra_health_psd.vtex");
+}
+
+.veilWalker-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/veil_walker_psd.vtex");
+}
+
+.vexBarrier-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/reactive_barrier_psd.vtex");
+}
+
+.warpStone-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/vitality/warp_stone_psd.vtex");
+}
+
+.tormentAura-style.ShopModsListTech #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/torment_pulse_psd.vtex");
+}
+
+.abilityRefresher-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/refresher_psd.vtex");
+}
+
+.acolytesGlove-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/spirit_strike_psd.vtex");
+}
+
+.advancedRecharge-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/improved_cooldown_psd.vtex");
+}
+
+.areaImmobilize-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/vortex_web_psd.vtex");
+}
+
+.bulletResistShredder-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/bullet_resist_shredder_psd.vtex");
+}
+
+.disarm-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/disarming_hex_psd.vtex");
+}
+
+.durationExtender-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/duration_extender_psd.vtex");
+}
+
+.escalatingExposure-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/escalating_exposure_psd.vtex");
+}
+
+.escalatingExposure1-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/spirit_burn_psd.vtex");
+}
+
+.extraCharge-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/extra_charge_psd.vtex");
+}
+
+.endurance-style.ShopModsListTech #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/mystic_regen_psd.vtex");
+}
+
+.focusedSilence1-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/focus_lens_psd.vtex");
+}
+
+.focusedSilence-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/spirit_sap_psd.vtex");
+}
+
+.glitch-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/curse_psd.vtex");
+}
+
+.iceBlast1-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/arctic_blast_psd.vtex");
+}
+
+.iceBlast-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/cold_front_psd.vtex");
+}
+
+.immobilize-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/slowing_hex_psd.vtex");
+}
+
+.knockdown-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/knockdown_psd.vtex");
+}
+
+.magicBurst-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/mystic_burst_psd.vtex");
+}
+
+.magicCarpet-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/magic_carpet_psd.vtex");
+}
+
+.magicReverb-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/mystic_reverb_psd.vtex");
+}
+
+.magicShock-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/tankbuster_psd.vtex");
+}
+
+.magicStorm-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/surge_of_power_psd.vtex");
+}
+
+.megaSpirit1-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/radiant_regeneration_psd.vtex");
+}
+
+.megaSpirit-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/boundless_spirit_psd.vtex");
+}
+
+.powerShard-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/echo_shard_psd.vtex");
+}
+
+.rapidRecharge-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/rapid_recharge_psd.vtex");
+}
+
+.rupture-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/decay_psd.vtex");
+}
+
+.rupture1-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/scourge_psd.vtex");
+}
+
+.shiftingShroud-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/ethereal_shift_psd.vtex");
+}
+
+.slowingTech-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/rusted_barrel_psd.vtex");
+}
+
+.slowingTech1-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/mystic_slow_psd.vtex");
+}
+
+.spiritSnatch-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/spirit_snatch_psd.vtex");
+}
+
+.spiritualDominion-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/greater_expansion_psd.vtex");
+}
+
+.spiritualFlow-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/superior_cooldown_psd.vtex");
+}
+
+.superiorDuration-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/superior_duration_psd.vtex");
+}
+
+.targetedSilence-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/silence_glyph_psd.vtex");
+}
+
+.techPower-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/extra_spirit_psd.vtex");
+}
+
+.techPower1-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/goose_egg_psd.vtex");
+}
+
+.techRange-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/mystic_reach_psd.vtex");
+}
+
+.techVulnerability-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/mystic_vulnerability_psd.vtex");
+}
+
+.tormentAura-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/torment_pulse_psd.vtex");
+}
+
+.ultimateBurst-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/lightning_scroll_psd.vtex");
+}
+
+.weaponJammer-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/suppressor_psd.vtex");
+}
+
+.arcaneSurge-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/arcane_surge_psd.vtex");
+}
+
+.soaringSpirit-style #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/improved_spirit_psd.vtex");
+}
+
+.fireRatePlus-style.ShopModsListTech #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/quicksilver_reload_psd.vtex");
+}
+
+.fireRatePlus1-style.ShopModsListTech #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/mercurial_magnum_psd.vtex");
+}
+
+.item_passive-style.ShopModsListTech #RSIconImage
+{
+	background-image: url("s2r://panorama/images/items/spirit/transcendent_cooldown_psd.vtex");
+}
+

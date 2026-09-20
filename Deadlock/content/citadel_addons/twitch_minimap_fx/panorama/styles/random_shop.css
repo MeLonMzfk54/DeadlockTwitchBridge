@@ -1,0 +1,741 @@
+/* Prettified by Source 2 Viewer 18.0.0.0 - https://valveresourceformat.github.io */
+
+﻿ #RandomNav .ShopNavigationTabBackground
+{
+	opacity-brush: gradient( linear, 0% 0%, 100% 0%, from( rgb(200, 80, 130) ), to( rgb(200, 80, 130) ) );
+}
+
+.CitadelHudHeroShop:not(.gShowingRandom) #RandomNav .ShopNavigationTabBackground
+{
+	opacity-brush: gradient( linear, 85% 0%, 100% 0%, from( rgb(200, 80, 130) ), color-stop( 0.5, rgb(160, 55, 100) ), to( rgb(100, 25, 60) ) );
+}
+
+.CitadelHudHeroShop:not(.gShowingRandom) #RandomNav.NavigationButton:hover .ShopNavigationTabBackground
+{
+	opacity-brush: gradient( linear, 80% 0%, 100% 0%, from( rgb(255, 130, 175) ), to( rgb(200, 80, 130) ) );
+}
+
+.gShowingRandom #RandomNav.NavigationButton
+{
+	height: 210px;
+	z-index: 2;
+}
+
+.gShowingRandom #RandomNav.NavigationButton .ShopNavigationTabBackground
+{
+	height: 230px;
+}
+
+.RSRandomTabIcon
+{
+	width: 70px;
+	height: 75px;
+	ignore-parent-flow: true;
+	background-image: url("s2r://panorama/images/hud/hud_icon_gold.vsvg");
+	background-size: 44%;
+	background-repeat: no-repeat;
+	background-position: center center;
+	opacity: 0.85;
+}
+
+.gShowingRandom #ShopModsListWeapon,.gShowingRandom #ShopModsListArmor,.gShowingRandom #ShopModsListTech,.gShowingRandom #ShopModsSelectedBuild,.gShowingRandom #ShopModsListAll,.gShowingRandom #SearchHeader,.gShowingRandom .HeroFavoritesHeaderLabel
+{
+	opacity: 0;
+	transform: translateY( -20px );
+}
+
+.gShowingRandom #ToggleContainer
+{
+	opacity: 0;
+}
+
+.gShowingRandom #ShopModListsContainer
+{
+	background-image: url("s2r://panorama/images/shop/catalog/catalog_shop_generic_bg_psd.vtex");
+}
+
+#RandomShopContent
+{
+	ignore-parent-flow: true;
+	width: 100%;
+	height: 100%;
+	z-index: 50;
+	flow-children: down;
+	padding: 28px 24px 24px 24px;
+	opacity: 0;
+	hittest: false;
+	transition-property: opacity;
+	transition-duration: 0.21s;
+}
+
+.gShowingRandom #RandomShopContent
+{
+	opacity: 1;
+	hittest: true;
+}
+
+.RSTitle
+{
+	font-size: 20px;
+	font-weight: bold;
+	text-transform: uppercase;
+	letter-spacing: 5px;
+	color: #d8c89a;
+	horizontal-align: center;
+	text-align: center;
+	margin-bottom: 4px;
+}
+
+.RSSubtitle
+{
+	font-size: 11px;
+	color: #4a5a6a;
+	horizontal-align: center;
+	text-align: center;
+	margin-bottom: 4px;
+}
+
+.RSBridgeDebug
+{
+	font-size: 11px;
+	font-weight: bold;
+	color: #7ec8ff;
+	horizontal-align: center;
+	text-align: center;
+	margin-bottom: 10px;
+	white-space: nowrap;
+}
+
+#RSVoteStartBtn.RSVoteStartBtn
+{
+	width: 100%;
+	height: 36px;
+	margin-bottom: 12px;
+	border-radius: 5px;
+	border: 1px solid #3a5878;
+	background-color: #121c2c;
+	transition-property: brightness, border;
+	transition-duration: 0.1s;
+}
+
+#RSVoteStartBtn.RSVoteStartBtn:hover
+{
+	brightness: 1.35;
+	border: 1px solid #5a88b8;
+}
+
+#RSVoteStartBtn.rs-vote-btn-skip
+{
+	border: 1px solid #884040;
+	background-color: #1c1214;
+}
+
+#RSVoteStartBtn.rs-vote-btn-restart
+{
+	border: 1px solid #886030;
+	background-color: #1c1810;
+}
+
+#RSVoteStartBtn.rs-vote-btn-disabled
+{
+	opacity: 0.45;
+	hittest: false;
+}
+
+.RSVoteStartLabel
+{
+	font-size: 13px;
+	font-weight: bold;
+	text-transform: uppercase;
+	letter-spacing: 2px;
+	color: #d8c89a;
+	horizontal-align: center;
+	vertical-align: center;
+	text-align: center;
+	width: 100%;
+}
+
+#RSCategoryFilter
+{
+	flow-children: right;
+	width: 100%;
+	margin-bottom: 14px;
+}
+
+.RSFilterBtn
+{
+	flow-children: right;
+	vertical-align: center;
+	width: fill-parent-flow( 1.0 );
+	height: 26px;
+	border-radius: 4px;
+	margin-right: 6px;
+	padding: 0px 8px;
+	border: 1px solid #1e2d48;
+	background-color: #0d1420;
+	transition-property: opacity, brightness;
+	transition-duration: 0.1s;
+}
+
+#RSFilterTech.RSFilterBtn
+{
+	margin-right: 0px;
+}
+
+.RSFilterBtn:hover
+{
+	brightness: 1.4;
+}
+
+.RSFilterDot
+{
+	width: 7px;
+	height: 7px;
+	border-radius: 50px;
+	vertical-align: center;
+	margin-right: 6px;
+}
+
+.RSFilterWeaponDot
+{
+	background-color: #d06828;
+}
+
+.RSFilterArmorDot
+{
+	background-color: #48944a;
+}
+
+.RSFilterTechDot
+{
+	background-color: #7840c8;
+}
+
+.RSFilterLabel
+{
+	font-size: 10px;
+	font-weight: bold;
+	text-transform: uppercase;
+	letter-spacing: 1px;
+	vertical-align: center;
+	width: fill-parent-flow( 1.0 );
+	color: #2a3a50;
+	transition-property: color;
+	transition-duration: 0.15s;
+}
+
+.RSFilterPct
+{
+	font-size: 10px;
+	font-weight: bold;
+	vertical-align: center;
+	horizontal-align: right;
+	margin-left: 4px;
+	color: #e0c040;
+	visibility: collapse;
+}
+
+.RSFilterBtn.rs-vote-on .RSFilterPct
+{
+	visibility: visible;
+}
+
+.RSFilterBtn.rs-filter-on .RSFilterLabel
+{
+	color: #b0c0d4;
+}
+
+#RSFilterWeapon.rs-filter-on
+{
+	border: 1px solid #d0682850;
+}
+
+#RSFilterArmor.rs-filter-on
+{
+	border: 1px solid #48944a50;
+}
+
+#RSFilterTech.rs-filter-on
+{
+	border: 1px solid #7840c850;
+}
+
+#RSFilterWeapon.rs-vote-lead
+{
+	border: 1px solid #d06828;
+	brightness: 1.25;
+}
+
+#RSFilterArmor.rs-vote-lead
+{
+	border: 1px solid #48944a;
+	brightness: 1.25;
+}
+
+#RSFilterTech.rs-vote-lead
+{
+	border: 1px solid #7840c8;
+	brightness: 1.25;
+}
+
+.RSFilterBtn.rs-filter-off
+{
+	opacity: 0.35;
+}
+
+.rs-mode-rolled #RSCategoryFilter
+{
+	opacity: 0.4;
+	hittest: false;
+}
+
+/* Free vertical space so the item card is not pushed off-screen */
+.rs-mode-rolled #RSTierButtons
+{
+	visibility: collapse;
+}
+
+#RSTierButtons
+{
+	flow-children: down;
+	width: 100%;
+}
+
+.RSTierBtn
+{
+	width: 100%;
+	height: 62px;
+	flow-children: right;
+	margin-bottom: 8px;
+	border-radius: 5px;
+	background-color: #0f1622;
+	border: 1px solid #1a2840;
+	transition-property: brightness, pre-transform-scale2d;
+	transition-duration: 0.1s;
+	overflow: noclip;
+}
+
+.rs-mode-rolled .RSTierBtn
+{
+	opacity: 0.45;
+	hittest: false;
+}
+
+.RSTierBtn:hover
+{
+	brightness: 1.4;
+	pre-transform-scale2d: 1.02;
+	border: 1px solid #3a5878;
+}
+
+.RSTierBtn:active
+{
+	brightness: 0.8;
+	pre-transform-scale2d: 0.97;
+}
+
+.RSTierAccent
+{
+	width: 5px;
+	height: 100%;
+}
+
+.tier1Accent
+{
+	background-color: #4a8060;
+}
+
+.tier2Accent
+{
+	background-color: #3a62a0;
+}
+
+.tier3Accent
+{
+	background-color: #8048a0;
+}
+
+.tier4Accent
+{
+	background-color: #a07028;
+}
+
+.RSTierContent
+{
+	flow-children: right;
+	vertical-align: center;
+	padding: 0px 18px;
+	width: fill-parent-flow( 1.0 );
+}
+
+.RSTierLabel
+{
+	font-size: 15px;
+	font-weight: bold;
+	color: #b8c8d8;
+	vertical-align: center;
+	margin-right: 8px;
+}
+
+.RSTierPct
+{
+	font-size: 14px;
+	font-weight: bold;
+	vertical-align: center;
+	visibility: collapse;
+}
+
+#RSTier1Pct.RSTierPct
+{
+	color: #4a8060;
+}
+
+#RSTier2Pct.RSTierPct
+{
+	color: #3a62a0;
+}
+
+#RSTier3Pct.RSTierPct
+{
+	color: #8048a0;
+}
+
+#RSTier4Pct.RSTierPct
+{
+	color: #a07028;
+}
+
+.RSTierBtn.rs-vote-on .RSTierPct
+{
+	visibility: visible;
+}
+
+.RSTierSpacer
+{
+	width: fill-parent-flow( 1.0 );
+	height: 1px;
+}
+
+.RSTierBtn.rs-vote-lead
+{
+	border: 1px solid #3a5878;
+	brightness: 1.2;
+}
+
+#RSTier1.rs-vote-lead
+{
+	border: 1px solid #4a8060;
+}
+
+#RSTier2.rs-vote-lead
+{
+	border: 1px solid #3a62a0;
+}
+
+#RSTier3.rs-vote-lead
+{
+	border: 1px solid #8048a0;
+}
+
+#RSTier4.rs-vote-lead
+{
+	border: 1px solid #a07028;
+}
+
+.RSTierBtn.rs-vote-winner
+{
+	brightness: 1.45;
+	box-shadow: 0px 0px 18px 4.0 #ffffff28;
+}
+
+#RSTier1.rs-vote-winner
+{
+	border: 2px solid #4a8060;
+	box-shadow: 0px 0px 20px 5.0 #4a806066;
+}
+
+#RSTier2.rs-vote-winner
+{
+	border: 2px solid #3a62a0;
+	box-shadow: 0px 0px 20px 5.0 #3a62a066;
+}
+
+#RSTier3.rs-vote-winner
+{
+	border: 2px solid #8048a0;
+	box-shadow: 0px 0px 20px 5.0 #8048a066;
+}
+
+#RSTier4.rs-vote-winner
+{
+	border: 2px solid #a07028;
+	box-shadow: 0px 0px 20px 5.0 #a0702866;
+}
+
+.RSFilterBtn.rs-vote-winner
+{
+	brightness: 1.45;
+}
+
+#RSFilterWeapon.rs-vote-winner
+{
+	border: 2px solid #d06828;
+	box-shadow: 0px 0px 14px 3.0 #d0682866;
+}
+
+#RSFilterArmor.rs-vote-winner
+{
+	border: 2px solid #48944a;
+	box-shadow: 0px 0px 14px 3.0 #48944a66;
+}
+
+#RSFilterTech.rs-vote-winner
+{
+	border: 2px solid #7840c8;
+	box-shadow: 0px 0px 14px 3.0 #7840c866;
+}
+
+.RSTierBtn.rs-vote-lost,
+.RSFilterBtn.rs-vote-lost
+{
+	opacity: 0.4;
+	brightness: 0.85;
+}
+
+.RSTierCostRow
+{
+	flow-children: right;
+	vertical-align: center;
+}
+
+.RSSoulsIcon
+{
+	width: 14px;
+	height: 14px;
+	vertical-align: center;
+	margin-right: 5px;
+	background-image: url("s2r://panorama/images/hud/hud_icon_gold.vsvg");
+	background-size: contain;
+	background-repeat: no-repeat;
+	background-position: center center;
+	opacity: 0.75;
+}
+
+.RSTierCost
+{
+	font-size: 14px;
+	font-weight: semi-bold;
+	color: #e0c040;
+	vertical-align: center;
+}
+
+#RSVoteMirror
+{
+	flow-children: down;
+	width: 100%;
+	margin-top: 10px;
+	margin-bottom: 6px;
+	padding: 8px 10px;
+	border-radius: 4px;
+	background-color: #0a1018ee;
+	border: 1px solid #1e3a55;
+}
+
+#RSVoteMirror.rs-debug-hidden
+{
+	visibility: collapse;
+	height: 0px;
+	margin-top: 0px;
+	margin-bottom: 0px;
+	padding: 0px;
+}
+
+.RSVoteMirrorLine
+{
+	font-size: 11px;
+	font-weight: bold;
+	color: #7ec8ff;
+	horizontal-align: left;
+	text-align: left;
+	width: 100%;
+	white-space: normal;
+	margin-bottom: 2px;
+}
+
+.RSVoteMirrorResult
+{
+	color: #b8c8d8;
+	margin-top: 2px;
+	margin-bottom: 0px;
+}
+
+/* Off-screen host for PNG side-channel Images (no width/height on children). */
+#RSVoteNetHost
+{
+	width: 640px;
+	height: 1020px;
+	opacity: 0.0;
+	position: absolute;
+	x: -2000px;
+	y: -2000px;
+	overflow: noclip;
+	hittest: false;
+}
+
+.RSNoItemsMsg
+{
+	font-size: 12px;
+	color: #b04040;
+	horizontal-align: center;
+	text-align: center;
+	margin-top: 10px;
+}
+
+#RSRolledView
+{
+	visibility: collapse;
+	flow-children: down;
+	width: 100%;
+	horizontal-align: center;
+	margin-top: 8px;
+	margin-bottom: 12px;
+	padding: 14px 12px 16px 12px;
+	background-color: #0a1420ee;
+	border: 1px solid #3a5878;
+	border-radius: 8px;
+	transition-property: opacity;
+	transition-duration: 0.2s;
+	opacity: 0;
+}
+
+.rs-mode-rolled #RSRolledView
+{
+	visibility: visible;
+	opacity: 1;
+}
+
+.RSRolledHeader
+{
+	font-size: 11px;
+	font-weight: bold;
+	text-transform: uppercase;
+	letter-spacing: 2px;
+	color: #e0c040;
+	horizontal-align: center;
+	text-align: center;
+	margin-bottom: 10px;
+}
+
+.RSDivider
+{
+	width: 100%;
+	height: 1px;
+	background-color: #1e2d48;
+	margin-bottom: 18px;
+	margin-top: 6px;
+}
+
+#RSBigIconWrapper
+{
+	width: 110px;
+	height: 110px;
+	horizontal-align: center;
+	background-color: #0a1020;
+	border: 1px solid #3a5878;
+	border-radius: 8px;
+	margin-bottom: 12px;
+	box-shadow: 0px 0px 22px 6.0 #f0d06033;
+	overflow: noclip;
+	transition-property: pre-transform-scale2d, box-shadow;
+	transition-duration: 0.15s;
+}
+
+#RSRolledView:hover #RSBigIconWrapper
+{
+	pre-transform-scale2d: 1.06;
+	box-shadow: 0px 0px 26px 7.0 #f0d06055;
+}
+
+.RSOverlayImage
+{
+	width: 100%;
+	height: 100%;
+	background-size: contain;
+	background-repeat: no-repeat;
+	background-position: center center;
+}
+
+.RSItemName
+{
+	font-size: 17px;
+	font-weight: bold;
+	color: #dce8f8;
+	horizontal-align: center;
+	text-align: center;
+	margin-bottom: 6px;
+}
+
+.RSItemTierLabel
+{
+	font-size: 12px;
+	font-weight: semi-bold;
+	text-transform: uppercase;
+	letter-spacing: 2px;
+	horizontal-align: center;
+	text-align: center;
+}
+
+.RSItemTierLabel.rs-tier1
+{
+	color: #4a8060;
+}
+
+.RSItemTierLabel.rs-tier2
+{
+	color: #3a62a0;
+}
+
+.RSItemTierLabel.rs-tier3
+{
+	color: #8048a0;
+}
+
+.RSItemTierLabel.rs-tier4
+{
+	color: #a07028;
+}
+
+.RSPurchaseStatus
+{
+	font-size: 11px;
+	color: #5090c8;
+	horizontal-align: center;
+	text-align: center;
+	margin-top: 6px;
+}
+
+.rs-cant-afford
+{
+	opacity: 0.38;
+}
+
+.rs-cant-afford .RSTierCost
+{
+	color: #c05050;
+}
+
+.rs-no-items
+{
+	opacity: 0.28;
+}
+
+.rs-no-items .RSTierLabel
+{
+	color: #704040;
+}
+
+.rs-no-items .RSTierCost
+{
+	color: #704040;
+}
+

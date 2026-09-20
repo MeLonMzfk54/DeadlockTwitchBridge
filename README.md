@@ -24,7 +24,8 @@ Deadlock (Panorama mod) → HTTP / console.log → Bridge App → /control «С�
 |------|------------|
 | `twitch-deadlock-bridge/` | Node.js приложение (Twitch + game transport + UI) |
 | `Deadlock/content/citadel_addons/twitch_integration/` | Справочные alias-команды |
-| `Deadlock/content/citadel_addons/twitch_minimap_fx/` | Panorama addon: телеметрия матча (`twitch_bridge_events.js`) |
+| `Deadlock/content/citadel_addons/twitch_minimap_fx/` | Panorama addon: телеметрия + Random Shop vote (`twitch_bridge_shop.js`, mod **1.9.0**) |
+| `Deadlock/content/citadel_addons/RandomShop/` | Устаревший снимок — **не** источник истины (см. `DEPRECATED.md`) |
 | `Deadlock/game/citadel_addons/twitch_integration/` | Манифест addon для упаковки |
 
 ## Режимы отправки команд
@@ -115,7 +116,11 @@ npm run test
 ### 3. Настройка Twitch
 
 1. Создайте приложение на [dev.twitch.tv](https://dev.twitch.tv/console/apps)
-2. Получите OAuth-токен со scope `channel:read:redemptions`
+2. Получите OAuth-токен со scopes:
+   - `channel:read:redemptions` — Channel Points → эффекты
+   - `user:read:chat` — Random Shop vote через EventSub `channel.chat.message`
+   - `user:write:chat` — объявление старта голосования в чат (Helix Send Chat Message)
+   - опционально `user:bot` / `channel:bot`, если Twitch потребует bot-style chat auth
 3. Заполните `.env`:
 
 ```env
@@ -207,14 +212,97 @@ npm run dev
 
 | URL | Назначение |
 |-----|------------|
-| `/control` | Панель стримера (статусы, тест с userInput, журнал эффектов, **события игры**) |
-| `/overlay` | OBS Browser Source (тосты при активации) |
+| `/control` | Панель стримера (статусы, тест с userInput, журнал эффектов, **события игры**, Random Shop vote) |
+| `/overlay` | OBS Browser Source (тосты Channel Points) |
+| `/overlay/shop` | OBS Browser Source (панель shop vote) |
 | `POST /api/test-effect` | API теста с `userInput` |
-| `GET /api/status` | Статус подключений, `gameTelemetry`, активные эффекты |
+| `GET /api/status` | Статус подключений (`chatConnected`), `gameTelemetry`, `shopVote`, активные эффекты |
 | `GET /api/effects` | Каталог эффектов с `cfgBindSafe` |
 | `POST /api/game-event` | Приём события от Panorama-мода (только localhost) |
 | `GET /api/game-events` | Журнал телеметрии (`?afterSeq=&limit=`), плюс `match` / `lastHeartbeat` |
 | `POST /api/game-events/clear` | Очистить журнал телеметрии (и `seenIds`) |
+
+## Random Shop / shop vote
+
+> **Полный гайд по запуску:** [RANDOM_SHOP.md](RANDOM_SHOP.md) (VPK, launch options, Twitch, настройки, чеклист).
+
+Голосование чата за категорию и тир предмета в магазине. Живой мод — только `twitch_minimap_fx` (VPK с `citadel_hud_hero_shop.xml` + `twitch_bridge_shop.js` / `random_shop.js`). Папка `RandomShop/` — устаревший снимок.
+
+### Как голосует чат
+
+На стадиях `voting_category` / `voting_tier` bridge слушает EventSub `channel.chat.message` и парсит **первое слово** сообщения (опциональный префикс `!`; в настройках можно требовать `!`):
+
+| Стадия | Команды |
+|--------|---------|
+| Категория | `weapon` / `w`, `vitality` / `armor` / `v`, `spirit` / `tech` / `s` |
+| Тир | `1`–`4` или `t1`–`t4` |
+
+Один голос на Twitch `userId` (last-vote-wins внутри стадии). Кнопки в `/control` без `userId` — каждый клик считается отдельно. Mock-бот по умолчанию **выкл** (`POST /api/shop-vote/mock`).
+
+При реальном старте стадии `voting_category` / `voting_tier` bridge пишет в чат редактируемый текст (настройки `chatAnnounce*` в `/control` → `config/shop-vote.json`). Нужен scope `user:write:chat`. Плейсхолдеры: `{options}`, `{seconds}`, `{prefix}`, `{category}`. Пустой шаблон или выключенный чекбокс — сообщение не шлётся.
+
+### Каналы Bridge → HUD / apply
+
+Panorama **не** читает JSON HTTP надёжно. Используются:
+
+| Назначение | Канал |
+|------------|--------|
+| % голосов, stage, таймер | PNG side-channel `GET /api/shop-vote-hud.png?slot=cats\|t12\|t34\|meta` (+ калибровка `/api/shop-probe.png`) |
+| Apply / skip ролла | PNG слот `slot=cmd`: `w=seq` (1–200), `h=cat*10+tier` (11–34) или `h=0` = skip |
+| Backup apply | cfg-bind: `bridge_shop_seq` / `cat` / `tier` + F10 `exec` |
+| События мода → bridge | `$.Msg("[twitch_bridge] EVENT …")` → хвост `console.log` (`-condebug`) |
+
+Debug-зеркало HUD: в консоли F7 `bridge_shop_debug 1` (по умолчанию выкл).
+
+### OBS overlay
+
+Два Browser Source:
+
+| URL | Что показывает |
+|-----|----------------|
+| `/overlay` | Тосты Channel Points |
+| `/overlay/shop` | Панель shop vote на стадиях `voting_*` / `applying` / `waiting_shop` и коротко после ролла/покупки (`overlayHoldMs`) |
+
+Рекомендуемый размер shop-источника ≈ 380×480 (панель вверху слева, прозрачный фон).
+
+### Control panel
+
+Карточка **Random Shop**: стадии, таймеры, категории/тиры, apply delay, автостарт (режим цикла), mock-бот, `!` prefix, тексты объявления в чат, cast/skip/apply, лента голосов. Настройки сохраняются в `config/shop-vote.json`. Точка **«Чат (голоса)»** зелёная при успешной подписке EventSub chat.
+
+### Env / persistence
+
+```env
+SHOP_VOTE_CATEGORY_MS=25000   # seed, если ещё нет config/shop-vote.json
+SHOP_VOTE_TIER_MS=25000
+SHOP_VOTE_RESTART_MS=25000
+```
+
+Живые префы: `config/shop-vote.json` (образец `config/shop-vote.example.json`) или `POST /api/shop-vote/settings` / `/control`.
+
+### API (shop vote)
+
+```bash
+curl http://127.0.0.1:3920/api/shop-vote
+curl http://127.0.0.1:3920/api/shop-vote/settings
+curl -X POST http://127.0.0.1:3920/api/shop-vote/start -H "Content-Type: application/json" -d "{\"stage\":\"full\"}"
+curl -X POST http://127.0.0.1:3920/api/shop-vote/cast -H "Content-Type: application/json" -d "{\"option\":\"weapon\",\"userId\":\"alice\"}"
+curl -X POST http://127.0.0.1:3920/api/shop-vote/mock -H "Content-Type: application/json" -d "{\"enabled\":true}"
+curl -X POST http://127.0.0.1:3920/api/shop-vote/skip
+curl -X POST http://127.0.0.1:3920/api/shop-vote/durations -H "Content-Type: application/json" -d "{\"categorySec\":30,\"tierSec\":25,\"restartSec\":25}"
+curl -X POST http://127.0.0.1:3920/api/shop-vote/settings -H "Content-Type: application/json" -d "{\"autoStart\":true,\"minTier\":1,\"maxTier\":3}"
+curl -X POST http://127.0.0.1:3920/api/shop-vote/apply -H "Content-Type: application/json" -d "{\"category\":\"weapon\",\"tier\":1}"
+```
+
+### Стрим: чеклист
+
+См. полный список в [RANDOM_SHOP.md](RANDOM_SHOP.md). Кратко:
+
+1. VPK из `twitch_minimap_fx` ([PACKAGING.md](Deadlock/content/citadel_addons/twitch_minimap_fx/PACKAGING.md)). **Выключите** отдельный `pak02` Random Shop.
+2. Launch options: `-condebug` (+ `-exec autoexec` для cfg-bind).
+3. Токен со scopes `channel:read:redemptions` + `user:read:chat` (+ `user:write:chat` для объявлений в чат).
+4. `npm run dev` → `/control`: «Чат» зелёный, при открытии магазина — Auto-start или «Полный цикл».
+5. OBS: Browser Source → `http://127.0.0.1:3920/overlay` (тосты) и `http://127.0.0.1:3920/overlay/shop` (голосование).
+6. Зрители пишут в чат `w` / `v` / `s`, затем `1`–`4`.
 
 ## Телеметрия матча (мод → bridge)
 
@@ -318,7 +406,8 @@ twitch-deadlock-bridge/
 │   └── input-binds.json
 ├── public/
 │   ├── control.html
-│   └── overlay.html
+│   ├── overlay.html
+│   └── overlay-shop.html
 └── src/
     ├── game/
     │   ├── game-command-client.ts
@@ -328,9 +417,16 @@ twitch-deadlock-bridge/
     │   ├── cfg-bind-client.ts
     │   └── create-game-client.ts
     ├── heroes/hero-resolver.ts
+    ├── shop/
+    │   ├── shop-vote-controller.ts
+    │   ├── shop-vote-png.ts
+    │   ├── shop-vote-settings.ts
+    │   └── shop-chat-parser.ts
     ├── effects/
     ├── queue/effect-manager.ts
-    ├── twitch/eventsub.ts
+    ├── twitch/
+    │   ├── eventsub.ts
+    │   └── chat-send.ts
     └── server/http-server.ts
 ```
 
@@ -364,7 +460,16 @@ npm start
 **Twitch не подключается**
 
 - Проверьте токен и scope `channel:read:redemptions`
-- Используйте `TEST_MODE=true` для отладки без Twitch
+- Для shop vote в чате нужен ещё `user:read:chat` (точка «Чат» в `/control`)
+- Для объявления старта голосования в чат — `user:write:chat`
+- Используйте `TEST_MODE=true` для отладки без Twitch (голоса — кнопками панели)
+
+**Shop vote / Random Shop не голосует в HUD**
+
+- В VPK должны быть `citadel_hud_hero_shop.xml` + `twitch_bridge_shop.js` (версия **1.9.0+**)
+- Выключите чужой `pak02` Random Shop (конфликт override)
+- Launch option `-condebug`; в `/control` смотрите `shop_*` события
+- Debug: F7 `bridge_shop_debug 1`
 
 **Зритель активировал награду, но ничего не произошло**
 

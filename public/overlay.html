@@ -77,7 +77,6 @@
     <div class="label" id="toastLabel">Twitch Reward</div>
     <div class="title" id="toastTitle">Эффект активирован</div>
     <p class="meta" id="toastViewerMeta"></p>
-    <!-- <p class="meta" id="toastMeta"></p> -->
   </div>
 
   <script>
@@ -116,18 +115,16 @@
       const toast = document.getElementById("toast");
       const label = document.getElementById("toastLabel");
       const viewerMeta = document.getElementById("toastViewerMeta");
-      const commonMeta = document.getElementById("toastMeta");
 
       label.innerHTML = `<span>${String(viewer)}</span> Нагадил` ;
       document.getElementById("toastTitle").textContent = meta ? `Эффект: ${String(meta)}` : "";
       viewerMeta.textContent = 'Зачем ты это сделал?';
-      // commonMeta.textContent = meta ? `Эффект: ${String(meta)}` : "";
 
       toast.classList.add("visible");
       setTimeout(() => toast.classList.remove("visible"), 5000);
     }
 
-    setInterval(poll, 1500);
+    setInterval(poll, 1000);
     poll();
   </script>
 </body>

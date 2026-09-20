@@ -29,10 +29,22 @@ export function printTestModeHelp(): void {
   console.log("API examples:");
   console.log('  curl -X POST http://127.0.0.1:3920/api/test-effect -H "Content-Type: application/json" -d "{\\"effectId\\":\\"hud_hide\\",\\"durationSec\\":30}"');
   console.log('  curl -X POST http://127.0.0.1:3920/api/test-effect -H "Content-Type: application/json" -d "{\\"effectId\\":\\"roster_high_priority_set\\",\\"userInput\\":\\"инфернус\\"}"');
+  console.log('  curl -X POST http://127.0.0.1:3920/api/shop-vote/start -H "Content-Type: application/json" -d "{\\"stage\\":\\"full\\"}"');
+  console.log('  curl -X POST http://127.0.0.1:3920/api/shop-vote/cast -H "Content-Type: application/json" -d "{\\"option\\":\\"weapon\\",\\"userId\\":\\"alice\\"}"');
+  console.log('  curl -X POST http://127.0.0.1:3920/api/shop-vote/mock -H "Content-Type: application/json" -d "{\\"enabled\\":true}"');
+  console.log('  curl -X POST http://127.0.0.1:3920/api/shop-vote/durations -H "Content-Type: application/json" -d "{\\"categorySec\\":30,\\"tierSec\\":25,\\"restartSec\\":25}"');
+  console.log("  curl -X POST http://127.0.0.1:3920/api/shop-vote/skip");
+  console.log('  curl -X POST http://127.0.0.1:3920/api/shop-vote/apply -H "Content-Type: application/json" -d "{\\"category\\":\\"weapon\\",\\"tier\\":1}"');
+  console.log("  curl http://127.0.0.1:3920/api/shop-vote");
+  console.log("  curl http://127.0.0.1:3920/api/shop-cmd");
+  console.log("  curl \"http://127.0.0.1:3920/api/shop-vote-hud.png?slot=cmd\"");
+  console.log("");
+  console.log("Shop chat votes (Twitch, need user:read:chat): weapon|w vitality|v spirit|s ; tiers 1-4|t1-t4");
   console.log("");
   console.log("Manual game console commands (F7 in Deadlock):");
   for (const [alias, command] of Object.entries(TEST_CONSOLE_COMMANDS)) {
     console.log(`  ${alias.padEnd(16)} -> ${command}`);
   }
+  console.log("  bridge_shop_debug 1  -> show Random Shop vote debug mirror");
   console.log("");
 }

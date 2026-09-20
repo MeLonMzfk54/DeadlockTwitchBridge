@@ -12,12 +12,14 @@ const SEEN_ID_CAPACITY = 500;
 function emptyMatchSnapshot(): MatchSnapshot {
   return {
     phase: "",
+    shopOpen: null,
     dead: false,
     respawnSec: null,
     clock: "",
     friendlyKills: null,
     enemyKills: null,
     lastKill: "",
+    hero: "",
     httpOk: null,
     panelsFound: {
       dataFeed: null,
@@ -148,9 +150,18 @@ export class GameEventBus extends EventEmitter<{
   private applyHeartbeatToMatch(payload: Record<string, unknown>): void {
     if (typeof payload.phase === "string" && payload.phase) {
       this.match.phase = payload.phase;
+      // phase===shop can open; never clear shopOpen from phase alone —
+      // top_bar often misses CitadelHudHeroShop and would wipe shop_open events.
+      if (payload.phase === "shop") this.match.shopOpen = true;
+    }
+    if (typeof payload.shopOpen === "boolean") {
+      this.match.shopOpen = payload.shopOpen;
     }
     if (typeof payload.dead === "boolean") {
       this.match.dead = payload.dead;
+    }
+    if (typeof payload.hero === "string" && payload.hero) {
+      this.match.hero = payload.hero;
     }
     if (typeof payload.httpOk === "boolean") {
       this.match.httpOk = payload.httpOk;
@@ -175,7 +186,21 @@ export class GameEventBus extends EventEmitter<{
     const p = evt.payload;
     switch (evt.type) {
       case "phase":
-        if (typeof p.phase === "string") this.match.phase = p.phase;
+        if (typeof p.phase === "string") {
+          this.match.phase = p.phase;
+          // Only open from phase; closing requires shop_closed / explicit shopOpen=false.
+          if (p.phase === "shop") this.match.shopOpen = true;
+        }
+        break;
+      case "shop_open":
+        this.match.shopOpen = true;
+        if (!this.match.phase || this.match.phase === "in_match" || this.match.phase === "unknown") {
+          this.match.phase = "shop";
+        }
+        break;
+      case "shop_closed":
+        this.match.shopOpen = false;
+        if (this.match.phase === "shop") this.match.phase = "in_match";
         break;
       case "local_death":
         this.match.dead = true;
@@ -192,6 +217,9 @@ export class GameEventBus extends EventEmitter<{
         if (typeof p.clock === "string") this.match.clock = p.clock;
         if (typeof p.friendlyKills === "number") this.match.friendlyKills = p.friendlyKills;
         if (typeof p.enemyKills === "number") this.match.enemyKills = p.enemyKills;
+        break;
+      case "hero":
+        if (typeof p.name === "string" && p.name) this.match.hero = p.name;
         break;
       case "killfeed": {
         const text =
@@ -222,6 +250,9 @@ export class GameEventBus extends EventEmitter<{
 
     if (typeof p.httpOk === "boolean") {
       this.match.httpOk = p.httpOk;
+    }
+    if (typeof p.hero === "string" && p.hero) {
+      this.match.hero = p.hero;
     }
 
     // Panel presence hints from poll payloads

@@ -30,7 +30,7 @@
         }
     } catch (eBoot) {}
 
-    var MOD_VERSION = "1.1.0";
+    var MOD_VERSION = "1.3.0";
     var LOG_PREFIX = "[twitch_bridge] EVENT ";
     var POLL_SEC = 0.25;
     var HEARTBEAT_SEC = 5.0;
@@ -39,7 +39,12 @@
 
     var CV_URL = "bridge_evt_url";
     var CV_DUMP = "bridge_evt_dump";
+    var CV_SHOP_SEQ = "bridge_shop_seq";
+    var CV_SHOP_CAT = "bridge_shop_cat";
+    var CV_SHOP_TIER = "bridge_shop_tier";
     var DEFAULT_URL = "http://127.0.0.1:3920/api/game-event";
+    var DEFAULT_SHOP_CMD_URL = "http://127.0.0.1:3920/api/shop-cmd";
+    var SHOP_CMD_POLL_SEC = 0.35;
 
     var PANEL_IDS = {
         hideout: "CitadelHudHideout",
@@ -90,6 +95,8 @@
         feedSeen: {},
         announceSeen: {},
         scoreSig: "",
+        hero: "",
+        heroSource: "",
         matchEndDumped: false,
         gameEventsSubscribed: false,
         probeComplete: false,
@@ -97,7 +104,10 @@
             dataFeed: null,
             announcements: null,
             gameEvents: null
-        }
+        },
+        shopCmdPollInFlight: false,
+        shopCmdLastSeenSeq: 0,
+        shopConvarsRegistered: false
     };
 
     function nowMs() {
@@ -148,6 +158,79 @@
             }
         } catch (e) {}
         return null;
+    }
+
+    function findPanelByTypeOrClass(root, panelType, className, maxDepth) {
+        if (!isPanelValid(root)) return null;
+        var depthLimit = typeof maxDepth === "number" ? maxDepth : 14;
+        var queue = [{ panel: root, depth: 0 }];
+        while (queue.length) {
+            var item = queue.shift();
+            var panel = item.panel;
+            var depth = item.depth;
+            if (!isPanelValid(panel)) continue;
+            try {
+                if (panelType && panel.paneltype === panelType) return panel;
+            } catch (eType) {}
+            if (className && panelHasClass(panel, className)) return panel;
+            if (depth >= depthLimit) continue;
+            try {
+                var n = typeof panel.GetChildCount === "function" ? panel.GetChildCount() : 0;
+                for (var i = 0; i < n; i++) {
+                    var child = panel.GetChild(i);
+                    if (isPanelValid(child)) queue.push({ panel: child, depth: depth + 1 });
+                }
+            } catch (eChild) {}
+        }
+        return null;
+    }
+
+    function findHeroShopPanel(root) {
+        var byId = findPanelById(root, PANEL_IDS.heroShop);
+        if (isPanelValid(byId)) return byId;
+        // Walk up to HUD root then search by type/class (override may omit id).
+        var climb = root;
+        var hops = 0;
+        while (isPanelValid(climb) && hops < 10) {
+            try {
+                var parent = typeof climb.GetParent === "function" ? climb.GetParent() : null;
+                if (!isPanelValid(parent)) break;
+                climb = parent;
+            } catch (e) {
+                break;
+            }
+            hops += 1;
+        }
+        var searchRoot = isPanelValid(climb) ? climb : root;
+        var byType = findPanelByTypeOrClass(searchRoot, "CitadelHudHeroShop", "CitadelHudHeroShop", 16);
+        if (isPanelValid(byType)) return byType;
+        return null;
+    }
+
+    function treeHasClass(root, className, maxDepth) {
+        if (rootHasClass(root, className)) return true;
+        // Descend a few levels (gShopOpen lives on hero shop, not top-bar ancestors).
+        if (!isPanelValid(root)) return false;
+        var depthLimit = typeof maxDepth === "number" ? maxDepth : 10;
+        var queue = [{ panel: root, depth: 0 }];
+        var visited = 0;
+        while (queue.length && visited < 200) {
+            var item = queue.shift();
+            visited += 1;
+            var panel = item.panel;
+            var depth = item.depth;
+            if (!isPanelValid(panel)) continue;
+            if (panelHasClass(panel, className)) return true;
+            if (depth >= depthLimit) continue;
+            try {
+                var n = typeof panel.GetChildCount === "function" ? panel.GetChildCount() : 0;
+                for (var i = 0; i < n; i++) {
+                    var child = panel.GetChild(i);
+                    if (isPanelValid(child)) queue.push({ panel: child, depth: depth + 1 });
+                }
+            } catch (e) {}
+        }
+        return false;
     }
 
     function panelVisible(panel) {
@@ -226,6 +309,178 @@
     function getPostUrl() {
         var url = readConvarString(CV_URL, "");
         return url || DEFAULT_URL;
+    }
+
+    function getShopCmdUrl() {
+        var post = getPostUrl();
+        if (post && post.indexOf("/api/game-event") !== -1) {
+            return post.replace("/api/game-event", "/api/shop-cmd");
+        }
+        return DEFAULT_SHOP_CMD_URL;
+    }
+
+    function tryRegisterShopConvars() {
+        if (state.shopConvarsRegistered) return;
+        var names = [CV_SHOP_SEQ, CV_SHOP_CAT, CV_SHOP_TIER];
+        var registered = [];
+        var candidates = [];
+        if (typeof Convars !== "undefined" && Convars) candidates.push(Convars);
+        if (typeof GameInterfaceAPI !== "undefined" && GameInterfaceAPI) candidates.push(GameInterfaceAPI);
+        if (typeof Game !== "undefined" && Game) candidates.push(Game);
+
+        for (var c = 0; c < candidates.length; c++) {
+            var api = candidates[c];
+            var fn =
+                (typeof api.RegisterConVar === "function" && api.RegisterConVar) ||
+                (typeof api.RegisterConvar === "function" && api.RegisterConvar) ||
+                (typeof api.CreateConVar === "function" && api.CreateConVar) ||
+                null;
+            if (!fn) continue;
+            for (var i = 0; i < names.length; i++) {
+                try {
+                    fn.call(api, names[i], "0", 0, "twitch bridge shop");
+                    registered.push(names[i]);
+                } catch (e) {}
+            }
+            if (registered.length) break;
+        }
+        if (registered.length) {
+            state.shopConvarsRegistered = true;
+            emit("shop_convars_ready", { registered: registered });
+        }
+    }
+
+    function parseShopCmdBody(raw) {
+        var obj = raw;
+        if (typeof raw === "string") {
+            try {
+                obj = JSON.parse(raw);
+            } catch (e) {
+                var m = raw.match(/\{[\s\S]*\}/);
+                if (!m) return null;
+                try {
+                    obj = JSON.parse(m[0]);
+                } catch (e2) {
+                    return null;
+                }
+            }
+        }
+        if (!obj || typeof obj !== "object") return null;
+        if (typeof obj.responseText === "string" && obj.responseText) {
+            return parseShopCmdBody(obj.responseText);
+        }
+        if (typeof obj.body === "string" && obj.body) {
+            return parseShopCmdBody(obj.body);
+        }
+        if (typeof obj.text === "string" && obj.text) {
+            return parseShopCmdBody(obj.text);
+        }
+        var seq = Number.parseInt(obj.seq, 10);
+        var cat = Number.parseInt(obj.cat, 10);
+        var tier = Number.parseInt(obj.tier, 10);
+        if (!Number.isFinite(seq)) return null;
+        return {
+            seq: seq,
+            cat: Number.isFinite(cat) ? cat : 0,
+            tier: Number.isFinite(tier) ? tier : 0,
+            pending: !!obj.pending
+        };
+    }
+
+    function deliverShopCmd(cmd, source) {
+        if (!cmd || !cmd.seq) return;
+        try {
+            if (typeof globalThis !== "undefined") {
+                globalThis.__twitch_bridge_pending_shop_cmd = cmd;
+            }
+        } catch (eStore) {}
+        try {
+            if (typeof globalThis !== "undefined" &&
+                typeof globalThis.__twitch_bridge_consider_shop_cmd === "function") {
+                globalThis.__twitch_bridge_consider_shop_cmd(cmd.seq, cmd.cat, cmd.tier, source || "events");
+            }
+        } catch (eCall) {}
+        if (cmd.seq !== state.shopCmdLastSeenSeq) {
+            state.shopCmdLastSeenSeq = cmd.seq;
+            emit("shop_cmd_poll", {
+                seq: cmd.seq,
+                cat: cmd.cat,
+                tier: cmd.tier,
+                pending: cmd.pending,
+                source: source || "events",
+                shopOpen: readShopOpenHint()
+            });
+        }
+    }
+
+    function readShopOpenHint() {
+        try {
+            if (typeof globalThis !== "undefined" && typeof globalThis.__twitch_bridge_shop_open === "boolean") {
+                return globalThis.__twitch_bridge_shop_open;
+            }
+        } catch (e) {}
+        return null;
+    }
+
+    function pollShopCmdHttp() {
+        if (state.shopCmdPollInFlight) return;
+        if (typeof $ === "undefined" || typeof $.AsyncWebRequest !== "function") return;
+        state.shopCmdPollInFlight = true;
+        var handled = false;
+        function onBody(raw) {
+            if (handled) return;
+            handled = true;
+            state.shopCmdPollInFlight = false;
+            try {
+                var cmd = parseShopCmdBody(raw);
+                if (cmd && cmd.seq > 0) {
+                    deliverShopCmd(cmd, "http_post");
+                }
+            } catch (e) {}
+        }
+        try {
+            // POST — same payload as GET; Panorama GET often silently fails.
+            $.AsyncWebRequest(getShopCmdUrl(), {
+                type: "POST",
+                data: "{}",
+                timeout: 2000,
+                headers: { "Content-Type": "application/json" },
+                success: function (data) {
+                    onBody(data);
+                },
+                complete: function (response) {
+                    if (handled) return;
+                    onBody(response);
+                }
+            });
+        } catch (eReq) {
+            state.shopCmdPollInFlight = false;
+            return;
+        }
+        $.Schedule(2.5, function () {
+            if (!handled) {
+                handled = true;
+                state.shopCmdPollInFlight = false;
+            }
+        });
+    }
+
+    function pollShopCmdCfg() {
+        try {
+            var seq = readConvarInt(CV_SHOP_SEQ, 0);
+            if (seq > 0) {
+                var cat = readConvarInt(CV_SHOP_CAT, 0);
+                var tier = readConvarInt(CV_SHOP_TIER, 0);
+                deliverShopCmd({ seq: seq, cat: cat, tier: tier, pending: true }, "cfg");
+            }
+        } catch (ePoll) {}
+    }
+
+    function shopCmdPollLoop() {
+        tryRegisterShopConvars();
+        pollShopCmdCfg();
+        pollShopCmdHttp();
+        $.Schedule(SHOP_CMD_POLL_SEC, shopCmdPollLoop);
     }
 
     function emit(type, payload, opts) {
@@ -355,7 +610,7 @@
         if (panelVisible(findPanelById(root, PANEL_IDS.pregame))) return "pregame";
         if (panelVisible(findPanelById(root, PANEL_IDS.pregameCountdown))) return "pregame_countdown";
         if (panelVisible(findPanelById(root, PANEL_IDS.matchStart))) return "match_start";
-        if (panelVisible(findPanelById(root, PANEL_IDS.heroShop)) || rootHasClass(root, "gShopOpen")) {
+        if (panelVisible(findHeroShopPanel(root)) || treeHasClass(root, "gShopOpen", 12) || rootHasClass(root, "gShopOpen")) {
             return "shop";
         }
         if (rootHasClass(root, "gScoreboardOpen")) return "scoreboard";
@@ -442,6 +697,127 @@
             }
         } catch (e3) {}
         return "";
+    }
+
+    function isPlaceholderHero(name) {
+        if (name === undefined || name === null) return true;
+        var s = String(name).trim();
+        if (!s) return true;
+        if (s.indexOf("{") !== -1) return true;
+        if (s === "?" || s === "-" || s === "undefined" || s === "null") return true;
+        return false;
+    }
+
+    function findPanelByClass(root, className, maxDepth) {
+        var found = null;
+        var cap = maxDepth || 12;
+        function walk(panel, depth) {
+            if (!isPanelValid(panel) || depth > cap || found) return;
+            if (panelHasClass(panel, className)) {
+                found = panel;
+                return;
+            }
+            try {
+                if (typeof panel.GetChildCount === "function") {
+                    var n = Math.min(panel.GetChildCount(), 30);
+                    for (var i = 0; i < n; i++) walk(panel.GetChild(i), depth + 1);
+                }
+            } catch (e) {}
+        }
+        walk(root, 0);
+        return found;
+    }
+
+    function panelOrAncestorIsLocal(panel, hops) {
+        var p = panel;
+        var n = hops || 5;
+        for (var i = 0; i < n && isPanelValid(p); i++) {
+            if (
+                panelHasClass(p, "local") ||
+                panelHasClass(p, "LocalPlayer") ||
+                panelHasClass(p, "Local") ||
+                panelHasClass(p, "localPlayer")
+            ) {
+                return true;
+            }
+            try {
+                p = typeof p.GetParent === "function" ? p.GetParent() : null;
+            } catch (e) {
+                break;
+            }
+        }
+        return false;
+    }
+
+    function readHeroFromShop(root) {
+        var shop = findHeroShopPanel(root);
+        var candidates = [];
+        if (isPanelValid(shop)) candidates.push(shop);
+        if (isPanelValid(root)) candidates.push(root);
+        for (var i = 0; i < candidates.length; i++) {
+            var p = candidates[i];
+            try {
+                if (typeof p.GetDialogVariable === "function") {
+                    var d = p.GetDialogVariable("hero_name") || p.GetDialogVariable("heroname");
+                    if (!isPlaceholderHero(d)) return String(d);
+                }
+            } catch (e) {}
+        }
+        var label = findPanelByClass(shop || root, "HeroFavoritesHeaderLabel", 12);
+        if (isPanelValid(label)) {
+            try {
+                if (typeof label.GetDialogVariable === "function") {
+                    var d2 = label.GetDialogVariable("hero_name") || label.GetDialogVariable("heroname");
+                    if (!isPlaceholderHero(d2)) return String(d2);
+                }
+            } catch (e2) {}
+            var text = readPanelText(label);
+            var m = String(text).match(/^(.+?)(?:'s|’s)\s+Recommended Mods/i);
+            if (m && !isPlaceholderHero(m[1])) return m[1].trim();
+        }
+        return "";
+    }
+
+    function readHeroFromTopBar(root) {
+        var teams = findPanelById(root, "TeamsContainer") || findPanelById(root, PANEL_IDS.topBar) || root;
+        var found = "";
+        function walk(panel, depth) {
+            if (!isPanelValid(panel) || depth > 10 || found) return;
+            var type = "";
+            try { type = String(panel.paneltype || panel.type || ""); } catch (e) {}
+            var isHeroImg = type === "CitadelHeroImage";
+            if (isHeroImg && panelOrAncestorIsLocal(panel, 5)) {
+                var hero = readHeroAttr(panel);
+                if (!isPlaceholderHero(hero)) {
+                    found = hero;
+                    return;
+                }
+            }
+            try {
+                if (typeof panel.GetChildCount === "function") {
+                    var n = Math.min(panel.GetChildCount(), 24);
+                    for (var i = 0; i < n; i++) walk(panel.GetChild(i), depth + 1);
+                }
+            } catch (e2) {}
+        }
+        walk(teams, 0);
+        return found;
+    }
+
+    function detectLocalHero(root) {
+        var fromShop = readHeroFromShop(root);
+        if (fromShop) return { name: fromShop, source: "hero_name" };
+        var fromBar = readHeroFromTopBar(root);
+        if (fromBar) return { name: fromBar, source: "local_hero_image" };
+        return { name: "", source: "" };
+    }
+
+    function pollHero(root) {
+        var info = detectLocalHero(root);
+        if (!info.name || info.name === state.hero) return;
+        state.hero = info.name;
+        state.heroSource = info.source;
+        emit("hero", { name: info.name, source: info.source });
     }
 
     function findHeroImageInfo(parent, id) {
@@ -798,15 +1174,23 @@
         pollKillfeed(root);
         pollAnnouncements(root);
         pollScore(root);
+        pollHero(root);
         maybeHudDump(root);
 
         var t = nowMs();
         if (t - state.lastHeartbeatMs >= HEARTBEAT_SEC * 1000) {
             state.lastHeartbeatMs = t;
+            var shopHint = readShopOpenHint();
+            var shopOpenHb = typeof shopHint === "boolean"
+                ? shopHint
+                : (state.phase === "shop");
             emit("heartbeat", {
                 phase: state.phase,
+                shopOpen: shopOpenHb,
                 dead: state.dead,
                 respawnSec: state.respawnSec,
+                hero: state.hero,
+                heroSource: state.heroSource,
                 httpOk: state.httpOk,
                 lastHttpError: state.lastHttpError,
                 version: MOD_VERSION,
@@ -836,6 +1220,8 @@
             sessionId: "s" + bootTs,
             defaults: { url: DEFAULT_URL, pollSec: POLL_SEC, heartbeatSec: HEARTBEAT_SEC }
         });
+        tryRegisterShopConvars();
+        $.Schedule(SHOP_CMD_POLL_SEC, shopCmdPollLoop);
         poll(state.gen);
     }
 

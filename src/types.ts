@@ -25,6 +25,9 @@ export interface AppConfig {
   allowCheatEffects: boolean;
   allowDestructiveEffects: boolean;
   maxQueueSize: number;
+  shopVoteCategoryMs: number;
+  shopVoteTierMs: number;
+  shopVoteRestartMs: number;
 }
 
 export interface EffectRequest {
@@ -80,8 +83,57 @@ export interface BridgeEvent {
   data?: Record<string, unknown>;
 }
 
+export interface ShopVoteStatus {
+  stage: string;
+  shopOpen: boolean;
+  autoStart: boolean;
+  stageEndsAt: number | null;
+  stageStartedAt: number | null;
+  categoryTally: Record<string, number>;
+  tierTally: Record<string, number>;
+  categoryPct: Record<string, number>;
+  tierPct: Record<string, number>;
+  winnerCategory: string | null;
+  winnerTier: number | null;
+  lastSeq: number;
+  lastCfg: { seq: number; cat: number; tier: number } | null;
+  pending: boolean;
+  cmdReceived: boolean;
+  hero: string;
+  lastRolled: Record<string, unknown> | null;
+  lastPurchase: Record<string, unknown> | null;
+  lastWaiting: Record<string, unknown> | null;
+  lastError: Record<string, unknown> | null;
+  pipeline: string[];
+  mockBotActive: boolean;
+  mockBotEnabled: boolean;
+  /** Soft cap for mock tier votes; null = unrestricted (no souls signal from game). */
+  maxAffordableTier: number | null;
+  categoryDurationMs: number;
+  tierDurationMs: number;
+  restartDelayMs: number;
+  recentVotes: { option: string; userId: string | null; at: number }[];
+  settings?: {
+    autoStart: boolean;
+    mockBotEnabled: boolean;
+    categoryDurationMs: number;
+    tierDurationMs: number;
+    restartDelayMs: number;
+    defaultStartMode: "full" | "category" | "tier";
+    enabledCategories: string[];
+    minTier: number;
+    maxTier: number;
+    requireBangPrefix: boolean;
+    applyDelayMs: number;
+    mockBotIntervalMs: number;
+    overlayHoldMs: number;
+  };
+}
+
 export interface BridgeStatus {
   twitchConnected: boolean;
+  /** True when EventSub `channel.chat.message` subscription is active. */
+  chatConnected: boolean;
   gameConnected: boolean;
   gameProcessRunning: boolean;
   gameCommandMode: GameCommandMode;
@@ -90,6 +142,7 @@ export interface BridgeStatus {
   queueLength: number;
   recentEvents: BridgeEvent[];
   gameTelemetry: GameTelemetryStatus;
+  shopVote: ShopVoteStatus;
 }
 
 export type GameEventTransport = "http" | "log";
@@ -110,12 +163,14 @@ export interface StoredGameEvent extends IncomingGameEvent {
 
 export interface MatchSnapshot {
   phase: string;
+  shopOpen: boolean | null;
   dead: boolean;
   respawnSec: number | null;
   clock: string;
   friendlyKills: number | null;
   enemyKills: number | null;
   lastKill: string;
+  hero: string;
   httpOk: boolean | null;
   panelsFound: {
     dataFeed: boolean | null;
@@ -153,4 +208,13 @@ export interface TwitchRedemption {
     cost: number;
   };
   redeemedAt: string;
+}
+
+export interface TwitchChatMessage {
+  messageId: string;
+  broadcasterUserId: string;
+  broadcasterUserLogin: string;
+  chatterUserId: string;
+  chatterUserLogin: string;
+  text: string;
 }

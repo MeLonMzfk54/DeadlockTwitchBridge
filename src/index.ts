@@ -4,7 +4,7 @@ import {
   loadRewardsConfig,
 } from "./config.js";
 import { createGameCommandClient } from "./game/create-game-client.js";
-import { ensureCfgBindSetup } from "./game/ensure-cfg-bind-setup.js";
+import { ensureCfgBindSetup, ensureShopConvarDefaults } from "./game/ensure-cfg-bind-setup.js";
 import { stopScreenFlipHelper } from "./game/screen-flip-helper.js";
 import { stopWasdInvertHook } from "./game/wasd-invert-hook.js";
 import { GameEventBus } from "./game/game-event-bus.js";
@@ -20,6 +20,10 @@ import { startHttpServer } from "./server/http-server.js";
 import { printTestModeHelp } from "./test/test-mode.js";
 import type { BridgeStatus } from "./types.js";
 import { join } from "node:path";
+import { ShopVoteController } from "./shop/shop-vote-controller.js";
+import { parseShopChatVote } from "./shop/shop-chat-parser.js";
+import { loadShopVoteSettings, saveShopVoteSettings, formatShopChatAnnounce } from "./shop/shop-vote-settings.js";
+import { sendTwitchChatMessage } from "./twitch/chat-send.js";
 
 const MOD_ONLINE_MS = 8_000;
 
@@ -43,16 +47,68 @@ async function main(): Promise<void> {
       console.log(
         `[game] autoexec.cfg ${action}: bind ${config.cfgTriggerKey} "exec ${config.cfgBindFilename}"`,
       );
+      if (setup.shopConvarsUpdated) {
+        console.log("[game] autoexec.cfg: added bridge_shop_* convar defaults");
+      }
       console.warn(
         "[game] Restart Deadlock with launch option -exec autoexec so the bind loads.",
       );
     }
+  } else if (config.deadlockCfgDir.trim()) {
+    // Still seed shop convars when using vconsole if cfg dir is known
+    if (ensureShopConvarDefaults(config.deadlockCfgDir)) {
+      console.log("[game] autoexec.cfg: added bridge_shop_* convar defaults");
+    }
   }
 
   const gameClient = createGameCommandClient(config);
+  const shopSettings = loadShopVoteSettings(
+    {
+      categoryDurationMs: config.shopVoteCategoryMs,
+      tierDurationMs: config.shopVoteTierMs,
+      restartDelayMs: config.shopVoteRestartMs,
+    },
+    { createIfMissing: true },
+  );
+  const shopVote = new ShopVoteController(gameClient, gameEventBus, {
+    settings: shopSettings,
+  });
+  const persistShopSettings = (): void => {
+    try {
+      saveShopVoteSettings(shopVote.getSettings());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[shop] Failed to save settings: ${message}`);
+    }
+  };
+
+  shopVote.on("vote_stage_start", ({ stage, snapshot }) => {
+    if (config.testMode) return;
+    const message = formatShopChatAnnounce({
+      stage,
+      settings: snapshot.settings,
+      category: snapshot.winnerCategory,
+    });
+    if (!message) return;
+    void (async () => {
+      const result = await sendTwitchChatMessage(config, message);
+      if (result.ok) {
+        shopVote.note(`chat announce (${stage}) ok`);
+        console.log(`[shop] Chat announce (${stage}): sent`);
+      } else {
+        shopVote.note(`chat announce (${stage}) fail: ${result.error ?? "unknown"}`);
+        console.warn(
+          `[shop] Chat announce failed (${stage}): ${result.error ?? "unknown"}` +
+            (result.status === 403 ? " — regenerate token with user:write:chat" : ""),
+        );
+      }
+    })();
+  });
 
   let twitchConnected = false;
+  let chatConnected = false;
   let gameConnected = false;
+  let twitchClient: TwitchEventSubClient | null = null;
 
   const effectManager = new EffectManager(
     gameClient,
@@ -72,8 +128,12 @@ async function main(): Promise<void> {
   const getStatus = (): BridgeStatus => {
     const mod = gameEventBus.getModStatus();
     const modOnline = mod.modLastSeenAt > 0 && Date.now() - mod.modLastSeenAt < MOD_ONLINE_MS;
+    if (mod.match.phase || typeof mod.match.shopOpen === "boolean") {
+      shopVote.syncFromMatchPhase(mod.match.phase || "", mod.match.shopOpen);
+    }
     return {
       twitchConnected,
+      chatConnected: Boolean(twitchClient?.chatConnected ?? chatConnected),
       gameConnected,
       gameProcessRunning: gameClient.gameProcessRunning ?? false,
       gameCommandMode: config.gameCommandMode,
@@ -92,6 +152,7 @@ async function main(): Promise<void> {
         lastHeartbeat: mod.lastHeartbeat,
         match: mod.match,
       },
+      shopVote: shopVote.getSnapshot(),
     };
   };
 
@@ -158,6 +219,8 @@ async function main(): Promise<void> {
     effects,
     getStatus,
     gameEventBus,
+    shopVote,
+    onShopSettingsChange: persistShopSettings,
   });
 
   if (config.testMode) {
@@ -169,19 +232,26 @@ async function main(): Promise<void> {
     }
 
     const twitch = new TwitchEventSubClient(config, rewards);
+    twitchClient = twitch;
 
     twitch.on("connected", () => {
       twitchConnected = true;
+      chatConnected = twitch.chatConnected;
       console.log("[twitch] Connected to EventSub");
+      if (chatConnected) {
+        console.log("[twitch] Chat vote listening (channel.chat.message)");
+      }
     });
 
     twitch.on("disconnected", () => {
       twitchConnected = false;
+      chatConnected = false;
       console.log("[twitch] Disconnected from EventSub");
     });
 
     twitch.on("error", (error) => {
       console.error("[twitch] Error:", error.message);
+      chatConnected = twitch.chatConnected;
     });
 
     twitch.on("redemption", (event) => {
@@ -199,6 +269,23 @@ async function main(): Promise<void> {
         event.reward.id,
         event.userInput,
       );
+    });
+
+    twitch.on("chat", (msg) => {
+      const snap = shopVote.getSnapshot();
+      const stage = snap.stage;
+      if (stage !== "voting_category" && stage !== "voting_tier") return;
+      const option = parseShopChatVote(msg.text, stage, {
+        requireBangPrefix: snap.settings.requireBangPrefix,
+      });
+      if (!option) return;
+      // Login for /control nick feed; falls back to id. Last-vote-wins per chatter.
+      const voterId = msg.chatterUserLogin || msg.chatterUserId;
+      try {
+        shopVote.cast(option, voterId);
+      } catch {
+        // Wrong option for stage — ignore (parser already filters most of these).
+      }
     });
 
     try {

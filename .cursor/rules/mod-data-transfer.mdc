@@ -1,0 +1,40 @@
+---
+description: How Deadlock Panorama mods exchange data with the Twitch bridge (proven channels only)
+alwaysApply: true
+---
+
+# Mod ↔ Bridge data transfer (Deadlock Panorama)
+
+Deadlock Panorama **cannot** use `fetch`, `$.AsyncWebRequest`, or websockets as a reliable downlink. Do not design new features around JSON HTTP from the game.
+
+## Proven channels
+
+| Direction | Channel | Use for |
+|-----------|---------|---------|
+| **Bridge → HUD (structured state)** | PNG image side-channel | Vote %, stage, timer, small ints |
+| **Bridge → game (commands)** | cfg-bind: write `twitch_bridge_effect.cfg` + F10 `exec` | Apply roll (`bridge_shop_seq/cat/tier`), effect cmds |
+| **Panorama → Bridge** | `$.Msg("[twitch_bridge] EVENT …")` → `console.log` tail (`-condebug`) | Events when HTTP out fails |
+| **Panorama → Bridge (best-effort)** | `POST /api/game-event` via AsyncWebRequest | May be dead; keep Msg duplicate |
+| **Browser `/control`** | Normal JSON HTTP | Control panel only — not the game |
+
+## PNG side-channel (HUD downlink)
+
+Pattern proven by Minigames (`mg_net.js`) and this repo’s shop vote:
+
+1. Bridge serves `Content-Type: image/png`; URL path **must end in `.png`**.
+2. Mod: hidden host panel (large enough, e.g. 640×1020), `$.CreatePanel("Image", host, …)`, **`SetImage(url)` with no width/height** on the Image.
+3. Poll `actuallayoutwidth` / `actuallayoutheight` via `$.Schedule(0.05)` until > 0 or timeout (~8s).
+4. Encode ints as levels: `dim = level * 9 + 15` (STEP=9, BASE=15). Calibrate with a known probe (600×1000); never assume scale=1.
+5. FIFO only — one `SetImage` at a time. Cache-bust with `?rnd=`.
+6. Reference: `src/shop/shop-vote-png.ts`, `twitch_bridge_shop.js`, `/api/shop-probe.png`, `/api/shop-vote-hud.png`.
+
+## Do not
+
+- Poll JSON with `$.AsyncWebRequest` / GET for HUD state (shows `vote=timeout` / `http_?`).
+- Ask Panorama to read arbitrary disk files / JSON next to the exe.
+- Spam F10/cfg every chat vote for tallies — cfg is for **discrete commands**, not high-frequency HUD.
+- Put large payloads in convars.
+
+## When adding a new Bridge → HUD signal
+
+Prefer extending the PNG slot protocol (or a new `.png` endpoint). Use cfg/convars only for rare one-shot commands (like shop apply).

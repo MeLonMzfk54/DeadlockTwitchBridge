@@ -9,6 +9,7 @@
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "test": "tsx src/index.ts --test-mode",
+    "test:unit": "tsx --test src/shop/shop-vote-controller.test.ts src/shop/shop-vote-png.test.ts src/shop/shop-chat-parser.test.ts src/shop/shop-vote-settings.test.ts",
     "patch-hud-xml": "node scripts/patch-hud-xml.mjs",
     "patch-top-bar-xml": "node scripts/patch-top-bar-xml.mjs"
   },

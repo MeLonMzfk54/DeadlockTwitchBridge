@@ -61,6 +61,9 @@ export function loadAppConfig(): AppConfig {
     allowCheatEffects: envBool("ALLOW_CHEAT_EFFECTS", false),
     allowDestructiveEffects: envBool("ALLOW_DESTRUCTIVE_EFFECTS", false),
     maxQueueSize: envInt("MAX_QUEUE_SIZE", 10),
+    shopVoteCategoryMs: envInt("SHOP_VOTE_CATEGORY_MS", 25_000),
+    shopVoteTierMs: envInt("SHOP_VOTE_TIER_MS", 25_000),
+    shopVoteRestartMs: envInt("SHOP_VOTE_RESTART_MS", 25_000),
   };
 }
 

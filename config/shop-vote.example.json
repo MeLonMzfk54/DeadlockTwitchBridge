@@ -1,0 +1,20 @@
+{
+  "autoStart": false,
+  "mockBotEnabled": false,
+  "categoryDurationMs": 25000,
+  "tierDurationMs": 25000,
+  "restartDelayMs": 25000,
+  "defaultStartMode": "full",
+  "enabledCategories": ["weapon", "vitality", "spirit"],
+  "minTier": 1,
+  "maxTier": 4,
+  "requireBangPrefix": false,
+  "applyDelayMs": 0,
+  "mockBotIntervalMs": 900,
+  "overlayHoldMs": 8000,
+  "allowHudStart": true,
+  "hudCanRestart": true,
+  "chatAnnounceEnabled": true,
+  "chatAnnounceCategory": "Голосование началось! Категория магазина — пишите в чат: {options}. {seconds} сек.",
+  "chatAnnounceTier": "Голосование за тир ({category})! Пишите в чат: {options}. {seconds} сек."
+}
