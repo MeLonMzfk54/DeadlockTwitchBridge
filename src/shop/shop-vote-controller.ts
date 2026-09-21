@@ -6,6 +6,7 @@ import {
   defaultShopVoteSettings,
   enabledTiersFromSettings,
   mergeShopVoteSettings,
+  randomAutoStartDelayMs,
   type ShopStartMode,
   type ShopVoteSettings,
 } from "./shop-vote-settings.js";
@@ -53,10 +54,27 @@ export function maxAffordableTierFromSouls(souls: number | null | undefined): Sh
   return max;
 }
 
-/** Default vote / restart lengths (20–30s range). Overridden by env / /control. */
+/** Default vote lengths. Auto-start interval defaults live in shop-vote-settings. */
 export const DEFAULT_SHOP_VOTE_CATEGORY_MS = 25_000;
 export const DEFAULT_SHOP_VOTE_TIER_MS = 25_000;
+/** @deprecated Use autoStartIntervalMinMs/MaxMs defaults. Kept for env seed alias. */
 export const DEFAULT_SHOP_VOTE_RESTART_MS = 25_000;
+
+const MATCH_ACTIVE_PHASES = new Set([
+  "in_match",
+  "shop",
+  "scoreboard",
+  "paused",
+  "match_start",
+  "pregame_countdown",
+]);
+
+const MATCH_OUTSIDE_PHASES = new Set([
+  "match_end",
+  "hideout",
+  "pregame",
+  "unknown",
+]);
 
 const CATEGORY_TO_CV: Record<ShopCategory, number> = {
   weapon: 1,
@@ -89,7 +107,10 @@ export const SHOP_CMD_SEQ_MAX = 200;
 export interface ShopVoteOptions {
   categoryDurationMs?: number;
   tierDurationMs?: number;
+  /** @deprecated Prefer autoStartIntervalMinMs/MaxMs. Maps to both when set alone. */
   restartDelayMs?: number;
+  autoStartIntervalMinMs?: number;
+  autoStartIntervalMaxMs?: number;
   mockBotIntervalMs?: number;
   mockBotVotesPerTick?: number;
   mockBotEnabled?: boolean;
@@ -133,6 +154,9 @@ export interface ShopVoteSnapshot {
   maxAffordableTier: ShopTier | null;
   categoryDurationMs: number;
   tierDurationMs: number;
+  autoStartIntervalMinMs: number;
+  autoStartIntervalMaxMs: number;
+  /** @deprecated Alias of autoStartIntervalMaxMs for older clients. */
   restartDelayMs: number;
   recentVotes: ShopRecentVote[];
   /** Persistent prefs (also mirrored in flat fields above for older clients). */
@@ -254,6 +278,8 @@ export class ShopVoteController extends EventEmitter<{
   private categoryVotes = new Map<string, ShopCategory>();
   private tierVotes = new Map<string, "1" | "2" | "3" | "4">();
   private recentVotes: ShopRecentVote[] = [];
+  /** Last known match phase from Panorama (empty until first phase event). */
+  private matchPhase = "";
 
   private settings: ShopVoteSettings;
   private readonly mockBotVotesPerTick: number;
@@ -268,6 +294,8 @@ export class ShopVoteController extends EventEmitter<{
       categoryDurationMs: options.categoryDurationMs,
       tierDurationMs: options.tierDurationMs,
       restartDelayMs: options.restartDelayMs,
+      autoStartIntervalMinMs: options.autoStartIntervalMinMs,
+      autoStartIntervalMaxMs: options.autoStartIntervalMaxMs,
     });
     if (typeof options.mockBotIntervalMs === "number") {
       seed.mockBotIntervalMs = options.mockBotIntervalMs;
@@ -296,8 +324,11 @@ export class ShopVoteController extends EventEmitter<{
   private get tierDurationMs(): number {
     return this.settings.tierDurationMs;
   }
-  private get restartDelayMs(): number {
-    return this.settings.restartDelayMs;
+  private get autoStartIntervalMinMs(): number {
+    return this.settings.autoStartIntervalMinMs;
+  }
+  private get autoStartIntervalMaxMs(): number {
+    return this.settings.autoStartIntervalMaxMs;
   }
   private get mockBotIntervalMs(): number {
     return this.settings.mockBotIntervalMs;
@@ -319,7 +350,11 @@ export class ShopVoteController extends EventEmitter<{
 
     if (!this.settings.autoStart) {
       this.clearRestartTimer();
-    } else if (this.stage === "purchased") {
+    } else if (
+      (this.stage === "purchased" || this.stage === "idle") &&
+      this.isMatchActiveForAutoStart()
+    ) {
+      this.push("autoStart enabled — scheduling");
       this.scheduleAutoRestart();
     }
 
@@ -385,7 +420,9 @@ export class ShopVoteController extends EventEmitter<{
       maxAffordableTier: this.maxAffordableTier,
       categoryDurationMs: this.categoryDurationMs,
       tierDurationMs: this.tierDurationMs,
-      restartDelayMs: this.restartDelayMs,
+      autoStartIntervalMinMs: this.autoStartIntervalMinMs,
+      autoStartIntervalMaxMs: this.autoStartIntervalMaxMs,
+      restartDelayMs: this.autoStartIntervalMaxMs,
       recentVotes: this.recentVotes.map((v) => ({ ...v })),
       settings: this.getSettings(),
     };
@@ -450,19 +487,25 @@ export class ShopVoteController extends EventEmitter<{
   setDurations(options: {
     categoryDurationMs?: number;
     tierDurationMs?: number;
+    autoStartIntervalMinMs?: number;
+    autoStartIntervalMaxMs?: number;
+    /** @deprecated Maps to both min and max when interval fields omitted. */
     restartDelayMs?: number;
   }): ShopVoteSnapshot {
     return this.applySettings({
       categoryDurationMs: options.categoryDurationMs,
       tierDurationMs: options.tierDurationMs,
-      restartDelayMs: options.restartDelayMs,
-    });
+      autoStartIntervalMinMs: options.autoStartIntervalMinMs,
+      autoStartIntervalMaxMs: options.autoStartIntervalMaxMs,
+      ...(options.restartDelayMs != null ? { restartDelayMs: options.restartDelayMs } : {}),
+    } as Partial<ShopVoteSettings> & { restartDelayMs?: number });
   }
 
   async start(mode: ShopStartMode = "full"): Promise<ShopVoteSnapshot> {
     this.clearTimers();
     this.runMode = mode;
     this.clearUserVotes();
+    this.recentVotes = [];
     this.lastRolled = null;
     this.lastPurchase = null;
     this.lastWaiting = null;
@@ -577,7 +620,6 @@ export class ShopVoteController extends EventEmitter<{
     }
     this.categoryTally[normalized] += 1;
     this.recordRecentVote(normalized, uid || null);
-    this.push(`vote ${normalized}=${this.categoryTally[normalized]}`);
     this.emitUpdate();
     return this.getSnapshot();
   }
@@ -598,7 +640,6 @@ export class ShopVoteController extends EventEmitter<{
     }
     this.tierTally[normalized] += 1;
     this.recordRecentVote(normalized, uid || null);
-    this.push(`vote T${normalized}=${this.tierTally[normalized]}`);
     this.emitUpdate();
     return this.getSnapshot();
   }
@@ -999,6 +1040,7 @@ export class ShopVoteController extends EventEmitter<{
       const phase = typeof evt.payload.phase === "string" ? evt.payload.phase : "";
       // Prefer dedicated shop_open/shop_closed; phase only opens, never closes.
       if (phase === "shop") this.applyShopOpen(true, "phase");
+      this.handleMatchPhase(phase);
       return;
     }
 
@@ -1098,8 +1140,11 @@ export class ShopVoteController extends EventEmitter<{
     }
   }
 
-  /** Sync shopOpen from match snapshot (heartbeat / dedicated field). */
+  /** Sync shopOpen + match phase (heartbeat / status poll). Drives auto-start. */
   syncFromMatchPhase(phase: string, shopOpenHint?: boolean | null): void {
+    if (phase) {
+      this.handleMatchPhase(phase);
+    }
     if (typeof shopOpenHint === "boolean") {
       this.applyShopOpen(shopOpenHint, "match.shopOpen");
       return;
@@ -1164,17 +1209,61 @@ export class ShopVoteController extends EventEmitter<{
     }
   }
 
+  private isMatchActiveForAutoStart(): boolean {
+    // Unknown until first heartbeat — allow schedule (purchase path / tests).
+    if (!this.matchPhase) return true;
+    if (MATCH_OUTSIDE_PHASES.has(this.matchPhase)) return false;
+    return MATCH_ACTIVE_PHASES.has(this.matchPhase);
+  }
+
+  private isMatchOutsidePhase(phase: string): boolean {
+    return !phase || MATCH_OUTSIDE_PHASES.has(phase);
+  }
+
+  private isMatchInsidePhase(phase: string): boolean {
+    return MATCH_ACTIVE_PHASES.has(phase);
+  }
+
+  private handleMatchPhase(phase: string): void {
+    if (!phase) return;
+    const prev = this.matchPhase;
+    if (prev === phase) return;
+    this.matchPhase = phase;
+
+    if (this.isMatchOutsidePhase(phase)) {
+      this.clearRestartTimer();
+      this.push(`match phase=${phase}; auto-start cancelled`);
+      return;
+    }
+
+    // Entering match from outside (incl. false-paused custom lobbies → in_match).
+    const enteredMatch =
+      this.isMatchOutsidePhase(prev) && this.isMatchInsidePhase(phase);
+    if (enteredMatch && this.autoStart && (this.stage === "idle" || this.stage === "purchased")) {
+      this.push(`match phase=${phase}; scheduling auto-start`);
+      this.scheduleAutoRestart();
+    }
+  }
+
   private scheduleAutoRestart(): void {
     this.clearRestartTimer();
     if (!this.autoStart) return;
-    this.push(`auto-restart in ${Math.round(this.restartDelayMs / 1000)}s`);
+    if (!this.isMatchActiveForAutoStart()) {
+      this.push(`auto-restart skipped (phase=${this.matchPhase || "unknown"})`);
+      return;
+    }
+    const delayMs = randomAutoStartDelayMs(this.settings);
+    this.push(`auto-restart in ${Math.round(delayMs / 1000)}s`);
     this.restartTimer = setTimeout(() => {
       this.restartTimer = null;
       if (!this.autoStart) return;
+      if (!this.isMatchActiveForAutoStart()) {
+        this.push(`auto-restart aborted (phase=${this.matchPhase || "unknown"})`);
+        return;
+      }
       if (this.stage !== "purchased" && this.stage !== "idle") return;
-      // After purchase: always start — shop need not stay open.
       void this.start(this.settings.defaultStartMode);
-    }, this.restartDelayMs);
+    }, delayMs);
   }
 
   private clearTimers(): void {

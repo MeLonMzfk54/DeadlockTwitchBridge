@@ -6,11 +6,14 @@ import { describe, it } from "node:test";
 import {
   DEFAULT_CHAT_ANNOUNCE_CATEGORY,
   DEFAULT_CHAT_ANNOUNCE_COMBINED,
+  DEFAULT_SHOP_VOTE_AUTO_INTERVAL_MAX_MS,
+  DEFAULT_SHOP_VOTE_AUTO_INTERVAL_MIN_MS,
   defaultShopVoteSettings,
   enabledTiersFromSettings,
   formatShopChatAnnounce,
   loadShopVoteSettings,
   mergeShopVoteSettings,
+  randomAutoStartDelayMs,
   saveShopVoteSettings,
   TWITCH_CHAT_MESSAGE_MAX_LEN,
 } from "./shop-vote-settings.js";
@@ -46,6 +49,23 @@ describe("mergeShopVoteSettings", () => {
     assert.equal(next.chatAnnounceTier, "");
   });
 
+  it("migrates legacy restartDelayMs to interval min/max", () => {
+    const base = defaultShopVoteSettings();
+    const next = mergeShopVoteSettings(base, { restartDelayMs: 45_000 });
+    assert.equal(next.autoStartIntervalMinMs, 45_000);
+    assert.equal(next.autoStartIntervalMaxMs, 45_000);
+  });
+
+  it("normalizes swapped auto-start interval bounds", () => {
+    const base = defaultShopVoteSettings();
+    const next = mergeShopVoteSettings(base, {
+      autoStartIntervalMinMs: 480_000,
+      autoStartIntervalMaxMs: 180_000,
+    });
+    assert.equal(next.autoStartIntervalMinMs, 180_000);
+    assert.equal(next.autoStartIntervalMaxMs, 480_000);
+  });
+
   it("keeps at least one category when array empty", () => {
     const base = defaultShopVoteSettings();
     const next = mergeShopVoteSettings(base, { enabledCategories: [] });
@@ -58,6 +78,25 @@ describe("mergeShopVoteSettings", () => {
     assert.equal(d.chatAnnounceCategory, DEFAULT_CHAT_ANNOUNCE_CATEGORY);
     assert.ok(d.chatAnnounceTier.includes("{category}"));
     assert.equal(d.chatAnnounceCombined, DEFAULT_CHAT_ANNOUNCE_COMBINED);
+    assert.equal(d.autoStartIntervalMinMs, DEFAULT_SHOP_VOTE_AUTO_INTERVAL_MIN_MS);
+    assert.equal(d.autoStartIntervalMaxMs, DEFAULT_SHOP_VOTE_AUTO_INTERVAL_MAX_MS);
+  });
+});
+
+describe("randomAutoStartDelayMs", () => {
+  it("returns fixed delay when min equals max", () => {
+    assert.equal(
+      randomAutoStartDelayMs({ autoStartIntervalMinMs: 12_000, autoStartIntervalMaxMs: 12_000 }),
+      12_000,
+    );
+  });
+
+  it("stays within bounds", () => {
+    const settings = { autoStartIntervalMinMs: 10_000, autoStartIntervalMaxMs: 20_000 };
+    for (let i = 0; i < 20; i++) {
+      const d = randomAutoStartDelayMs(settings, () => i / 20);
+      assert.ok(d >= 10_000 && d <= 20_000);
+    }
   });
 });
 

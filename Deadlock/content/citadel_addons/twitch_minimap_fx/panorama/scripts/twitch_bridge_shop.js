@@ -259,7 +259,8 @@
             "&rnd=" + Math.random() + "x" + state.imgReqCounter;
     }
 
-    function emit(type, payload) {
+    function emit(type, payload, opts) {
+        opts = opts || {};
         var evt = {
             v: 1,
             id: nextId(),
@@ -268,9 +269,11 @@
             payload: payload || {}
         };
         var json = safeStringify(evt);
-        try {
-            $.Msg(LOG_PREFIX + json + "\n");
-        } catch (e) {}
+        if (!opts.skipLog) {
+            try {
+                $.Msg(LOG_PREFIX + json + "\n");
+            } catch (e) {}
+        }
         if (typeof $ !== "undefined" && typeof $.AsyncWebRequest === "function") {
             try {
                 $.AsyncWebRequest(getPostUrl(), {
@@ -418,6 +421,45 @@
             }
         } catch (eFlag) {}
         emit(open ? "shop_open" : "shop_closed", attachHero({ open: open }));
+        if (open) {
+            activateRandomTabForPipeline("shop_open");
+        }
+    }
+
+    function stageNeedsRandomTab(stage) {
+        return stage === "voting_category" ||
+            stage === "voting_tier" ||
+            stage === "voting_combined" ||
+            stage === "applying" ||
+            stage === "rolled" ||
+            stage === "waiting_shop";
+    }
+
+    function setLastVoteStage(stage) {
+        if (!stage) return;
+        state.lastVoteStage = String(stage);
+        try {
+            if (typeof globalThis !== "undefined") {
+                globalThis.__twitch_bridge_last_vote_stage = state.lastVoteStage;
+            }
+        } catch (eSt) {}
+    }
+
+    /** Switch to Random Shop tab when vote/roll/purchase needs it. */
+    function activateRandomTabForPipeline(reason) {
+        try {
+            var root = getRoot();
+            if (!root || typeof root.ActivateRandomTab !== "function") return;
+            var stage = state.lastVoteStage || "";
+            var pending = readLocalPendingRoll();
+            var rolled = false;
+            try { rolled = root.BHasClass("rs-mode-rolled"); } catch (eR) {}
+            if (!stageNeedsRandomTab(stage) && !pending && !rolled) return;
+            root.ActivateRandomTab();
+            if (typeof root.RandomShopTryRestorePending === "function") {
+                root.RandomShopTryRestorePending();
+            }
+        } catch (eAct) {}
     }
 
     function clearBusy(reason) {
@@ -480,7 +522,7 @@
             shopOpen: state.shopOpen,
             hasApi: hasRandomShopApi(getRoot()),
             domReady: shopDomReady(getRoot())
-        }));
+        }), { skipLog: true });
     }
 
     function watchShopOpenBridge() {
@@ -665,7 +707,7 @@
         state.votePaintTick += 1;
         var root = getRoot();
         var stage = (info && info.stage) ? String(info.stage) : (state.lastVoteStage || "?");
-        state.lastVoteStage = stage;
+        setLastVoteStage(stage);
         var line =
             "bridge " + MOD_VERSION +
             " #" + state.votePaintTick +
@@ -712,7 +754,7 @@
                 hasMirror: hasMirror,
                 voteNet: state.voteNet,
                 cmdNet: state.cmdNet
-            });
+            }, { skipLog: true });
         }
     }
 
@@ -939,7 +981,7 @@
     }
 
     function ensureRolledItemVisible(stage) {
-        if (stage !== "waiting_shop" && stage !== "rolled" && stage !== "applying") return;
+        if (!stageNeedsRandomTab(stage)) return;
         try {
             var root = getRoot();
             if (!root) return;
@@ -947,10 +989,8 @@
                 root.RandomShopTryRestorePending();
             }
             if (typeof root.ActivateRandomTab === "function") {
-                // Keep Random tab so RSRolledView is on-screen.
-                if (!root.BHasClass("rs-mode-rolled") && readLocalPendingRoll()) {
-                    root.ActivateRandomTab();
-                }
+                // Always show Random tab during vote/apply/roll/wait — roll+buy need gShowingRandom.
+                root.ActivateRandomTab();
             }
         } catch (eEns) {}
     }
@@ -1063,8 +1103,14 @@
             paintVoteMirror(null, null);
             return;
         }
+        var prevStage = state.lastVoteStage || "";
         var stage = cmd && cmd.stage ? String(cmd.stage) : "";
-        if (stage) state.lastVoteStage = stage;
+        if (stage) setLastVoteStage(stage);
+        // First paint into a vote/apply stage: force Random tab even if shop
+        // was already open on Weapon/Vitality/Spirit.
+        if (stage && stage !== prevStage && stageNeedsRandomTab(stage)) {
+            activateRandomTabForPipeline("vote_stage");
+        }
         var catPct = (cmd && cmd.categoryPct) || {};
         var tierPct = (cmd && cmd.tierPct) || {};
         var postVote =
@@ -1084,7 +1130,7 @@
         // purchased/failed/idle or direct-apply (all 0%) → wipe vote chrome.
         if (stage === "purchased" || stage === "failed" || stage === "idle" ||
             (postVote && !hasCatResults && !hasTierResults)) {
-            if (stage) state.lastVoteStage = stage;
+            if (stage) setLastVoteStage(stage);
             clearVoteHud(root);
             updateVoteStartBtn(stage || "idle");
             paintBridgeDebug({ stage: stage || "idle" });
@@ -1283,7 +1329,7 @@
         }
         if (slotName === "meta") {
             return {
-                w: decodeLevel(w, state.imgScaleX, 7),
+                w: decodeLevel(w, state.imgScaleX, 8),
                 h: decodeLevel(h, state.imgScaleY, 60)
             };
         }

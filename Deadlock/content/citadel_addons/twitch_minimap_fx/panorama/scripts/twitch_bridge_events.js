@@ -36,6 +36,10 @@
     var HEARTBEAT_SEC = 5.0;
     var DUMP_COOLDOWN_SEC = 10.0;
     var PROBE_RETRY_SEC = 3.0;
+    /** Clock text must change within this window to count as "running". */
+    var CLOCK_LIVE_MS = 3000;
+    /** PausedInfo only wins if clock has been frozen at least this long. */
+    var CLOCK_FROZEN_MS = 2000;
 
     var CV_URL = "bridge_evt_url";
     var CV_DUMP = "bridge_evt_dump";
@@ -95,6 +99,9 @@
         feedSeen: {},
         announceSeen: {},
         scoreSig: "",
+        lastClockText: "",
+        lastClockChangeMs: 0,
+        clockLive: false,
         hero: "",
         heroSource: "",
         matchEndDumped: false,
@@ -245,6 +252,20 @@
                 if (vis === "collapse" || vis === "hidden") return false;
             }
         } catch (e) {}
+        return true;
+    }
+
+    /** Stricter visibility: requires non-zero layout (avoids phantom PausedInfo etc.). */
+    function panelReallyVisible(panel) {
+        if (!panelVisible(panel)) return false;
+        try {
+            var w = Number(panel.actuallayoutwidth);
+            var h = Number(panel.actuallayoutheight);
+            if (Number.isFinite(w) && Number.isFinite(h)) {
+                return w > 0 && h > 0;
+            }
+        } catch (e) {}
+        // Layout not ready yet — fall back to soft visible check.
         return true;
     }
 
@@ -605,8 +626,12 @@
 
     function detectPhase(root) {
         if (panelVisible(findPanelById(root, PANEL_IDS.hideout))) return "hideout";
-        if (panelVisible(findPanelById(root, PANEL_IDS.paused))) return "paused";
-        if (panelVisible(findPanelById(root, PANEL_IDS.matchEnd))) return "match_end";
+        // Real pause overlay — but advancing GameTime means custom/sandbox false pause.
+        if (panelReallyVisible(findPanelById(root, PANEL_IDS.paused))) {
+            if (state.clockLive) return "in_match";
+            return "paused";
+        }
+        if (panelReallyVisible(findPanelById(root, PANEL_IDS.matchEnd))) return "match_end";
         if (panelVisible(findPanelById(root, PANEL_IDS.pregame))) return "pregame";
         if (panelVisible(findPanelById(root, PANEL_IDS.pregameCountdown))) return "pregame_countdown";
         if (panelVisible(findPanelById(root, PANEL_IDS.matchStart))) return "match_start";
@@ -616,8 +641,63 @@
         if (rootHasClass(root, "gScoreboardOpen")) return "scoreboard";
         var alive = findPanelById(root, PANEL_IDS.aliveHud);
         var gameplay = findPanelById(root, PANEL_IDS.gameplayHud);
-        if (panelVisible(alive) || panelVisible(gameplay)) return "in_match";
+        if (panelReallyVisible(alive) || panelReallyVisible(gameplay)) return "in_match";
+        // Custom matches often lack normal HUD panels — running clock is enough.
+        if (state.clockLive) return "in_match";
         return "unknown";
+    }
+
+    function readGameClockText(root) {
+        var clockPanel = findPanelById(root, PANEL_IDS.gameTime);
+        var direct = readPanelText(clockPanel);
+        if (direct && isClockText(direct)) return String(direct).trim();
+        // Bound game_clock often lives on a child Label, not panel.text.
+        if (isPanelValid(clockPanel)) {
+            var texts = [];
+            collectLabelTexts(clockPanel, 0, texts);
+            for (var i = 0; i < texts.length; i++) {
+                var t = String(texts[i] || "").trim();
+                if (isClockText(t)) return t;
+                var m = t.match(/(\d{1,2}:\d{2}(?:\.\d+)?)/);
+                if (m) return m[1];
+            }
+        }
+        var byClass = readLabelByClass(root, "GameTime");
+        if (byClass && isClockText(byClass)) return String(byClass).trim();
+        if (byClass) {
+            var m2 = String(byClass).trim().match(/(\d{1,2}:\d{2}(?:\.\d+)?)/);
+            if (m2) return m2[1];
+        }
+        return direct ? String(direct).trim() : "";
+    }
+
+    /** True if text looks like a match clock (e.g. 0:12, 12:05). */
+    function isClockText(text) {
+        return /^\d{1,2}:\d{2}(?:\.\d+)?$/.test(String(text || "").trim());
+    }
+
+    /**
+     * Update clock-live state from GameTime panel.
+     * Clock "advancing" = text changed recently; frozen = same text for CLOCK_FROZEN_MS.
+     */
+    function updateClockLive(root) {
+        var clock = String(readGameClockText(root) || "").trim();
+        var t = nowMs();
+        if (clock && isClockText(clock)) {
+            if (clock !== state.lastClockText) {
+                state.lastClockText = clock;
+                state.lastClockChangeMs = t;
+                state.clockLive = true;
+            } else if (state.lastClockChangeMs > 0) {
+                var age = t - state.lastClockChangeMs;
+                state.clockLive = age < CLOCK_LIVE_MS;
+                if (age >= CLOCK_FROZEN_MS) state.clockLive = false;
+            }
+        } else if (state.lastClockChangeMs > 0 && t - state.lastClockChangeMs >= CLOCK_LIVE_MS) {
+            state.clockLive = false;
+        }
+        // Prefer last known good clock for telemetry when this frame's read is empty.
+        return clock || state.lastClockText || "";
     }
 
     function readPanelText(panel) {
@@ -953,8 +1033,7 @@
     }
 
     function pollScore(root) {
-        var clockPanel = findPanelById(root, PANEL_IDS.gameTime);
-        var clock = readPanelText(clockPanel) || readLabelByClass(root, "GameTime") || "";
+        var clock = updateClockLive(root);
         var friendly = readLabelByClass(root, "FriendlyKills");
         var enemy = readLabelByClass(root, "EnemyKills");
         var fk = friendly !== "" ? Number.parseInt(friendly, 10) : null;
@@ -965,12 +1044,23 @@
         var sig = clock + "|" + (fk === null ? "" : fk) + "|" + (ek === null ? "" : ek);
         if (sig === "||") return;
         if (sig === state.scoreSig) return;
+        var prevSig = state.scoreSig;
         state.scoreSig = sig;
-        emit("score", {
-            clock: clock,
-            friendlyKills: fk,
-            enemyKills: ek
-        });
+        // Only log when kills change (not every clock tick).
+        var prevParts = String(prevSig || "").split("|");
+        var killsChanged =
+            prevParts.length < 3 ||
+            String(prevParts[1]) !== String(fk === null ? "" : fk) ||
+            String(prevParts[2]) !== String(ek === null ? "" : ek);
+        emit(
+            "score",
+            {
+                clock: clock,
+                friendlyKills: fk,
+                enemyKills: ek
+            },
+            { skipLog: !killsChanged }
+        );
     }
 
     function dumpPanelTree(panel, depth, maxDepth, maxNodes, maxChildren, acc) {
@@ -1143,11 +1233,14 @@
 
         maybeProbeAndSubscribe();
 
+        // Update clock before phase so PausedInfo can be demoted when time is running.
+        updateClockLive(root);
+
         var phase = detectPhase(root);
         if (phase !== state.phase) {
             var prev = state.phase;
             state.phase = phase;
-            emit("phase", { phase: phase, previous: prev });
+            emit("phase", { phase: phase, previous: prev, clock: state.lastClockText || "" });
             maybeMatchEndDump(root, phase);
         }
 
@@ -1184,23 +1277,29 @@
             var shopOpenHb = typeof shopHint === "boolean"
                 ? shopHint
                 : (state.phase === "shop");
-            emit("heartbeat", {
-                phase: state.phase,
-                shopOpen: shopOpenHb,
-                dead: state.dead,
-                respawnSec: state.respawnSec,
-                hero: state.hero,
-                heroSource: state.heroSource,
-                httpOk: state.httpOk,
-                lastHttpError: state.lastHttpError,
-                version: MOD_VERSION,
-                url: getPostUrl(),
-                panelsFound: {
-                    dataFeed: state.panelsFound.dataFeed,
-                    announcements: state.panelsFound.announcements,
-                    gameEvents: state.panelsFound.gameEvents
-                }
-            });
+            emit(
+                "heartbeat",
+                {
+                    phase: state.phase,
+                    shopOpen: shopOpenHb,
+                    clock: state.lastClockText || "",
+                    clockLive: state.clockLive,
+                    dead: state.dead,
+                    respawnSec: state.respawnSec,
+                    hero: state.hero,
+                    heroSource: state.heroSource,
+                    httpOk: state.httpOk,
+                    lastHttpError: state.lastHttpError,
+                    version: MOD_VERSION,
+                    url: getPostUrl(),
+                    panelsFound: {
+                        dataFeed: state.panelsFound.dataFeed,
+                        announcements: state.panelsFound.announcements,
+                        gameEvents: state.panelsFound.gameEvents
+                    }
+                },
+                { skipLog: true }
+            );
         }
 
         $.Schedule(POLL_SEC, function () { poll(gen); });

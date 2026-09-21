@@ -32,7 +32,7 @@ export function printTestModeHelp(): void {
   console.log('  curl -X POST http://127.0.0.1:3920/api/shop-vote/start -H "Content-Type: application/json" -d "{\\"stage\\":\\"full\\"}"');
   console.log('  curl -X POST http://127.0.0.1:3920/api/shop-vote/cast -H "Content-Type: application/json" -d "{\\"option\\":\\"weapon\\",\\"userId\\":\\"alice\\"}"');
   console.log('  curl -X POST http://127.0.0.1:3920/api/shop-vote/mock -H "Content-Type: application/json" -d "{\\"enabled\\":true}"');
-  console.log('  curl -X POST http://127.0.0.1:3920/api/shop-vote/durations -H "Content-Type: application/json" -d "{\\"categorySec\\":30,\\"tierSec\\":25,\\"restartSec\\":25}"');
+  console.log('  curl -X POST http://127.0.0.1:3920/api/shop-vote/durations -H "Content-Type: application/json" -d "{\\"categorySec\\":30,\\"tierSec\\":25,\\"autoStartIntervalMinMin\\":3,\\"autoStartIntervalMaxMin\\":8}"');
   console.log("  curl -X POST http://127.0.0.1:3920/api/shop-vote/skip");
   console.log('  curl -X POST http://127.0.0.1:3920/api/shop-vote/apply -H "Content-Type: application/json" -d "{\\"category\\":\\"weapon\\",\\"tier\\":1}"');
   console.log("  curl http://127.0.0.1:3920/api/shop-vote");

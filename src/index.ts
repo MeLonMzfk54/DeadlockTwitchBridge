@@ -66,7 +66,12 @@ async function main(): Promise<void> {
     {
       categoryDurationMs: config.shopVoteCategoryMs,
       tierDurationMs: config.shopVoteTierMs,
-      restartDelayMs: config.shopVoteRestartMs,
+      ...(config.shopVoteRestartMs > 0
+        ? { restartDelayMs: config.shopVoteRestartMs }
+        : {
+            autoStartIntervalMinMs: config.shopVoteAutoIntervalMinMs,
+            autoStartIntervalMaxMs: config.shopVoteAutoIntervalMaxMs,
+          }),
     },
     { createIfMissing: true },
   );

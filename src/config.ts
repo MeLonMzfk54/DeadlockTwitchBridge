@@ -63,7 +63,9 @@ export function loadAppConfig(): AppConfig {
     maxQueueSize: envInt("MAX_QUEUE_SIZE", 10),
     shopVoteCategoryMs: envInt("SHOP_VOTE_CATEGORY_MS", 25_000),
     shopVoteTierMs: envInt("SHOP_VOTE_TIER_MS", 25_000),
-    shopVoteRestartMs: envInt("SHOP_VOTE_RESTART_MS", 25_000),
+    shopVoteRestartMs: envInt("SHOP_VOTE_RESTART_MS", 0),
+    shopVoteAutoIntervalMinMs: envInt("SHOP_VOTE_AUTO_INTERVAL_MIN_MS", 180_000),
+    shopVoteAutoIntervalMaxMs: envInt("SHOP_VOTE_AUTO_INTERVAL_MAX_MS", 480_000),
   };
 }
 

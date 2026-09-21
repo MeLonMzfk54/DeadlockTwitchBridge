@@ -291,6 +291,10 @@ async function handleRequest(
         categorySec?: number;
         tierSec?: number;
         restartSec?: number;
+        autoStartIntervalMinMs?: number;
+        autoStartIntervalMaxMs?: number;
+        autoStartIntervalMinMin?: number;
+        autoStartIntervalMaxMin?: number;
       };
       const categoryDurationMs =
         typeof payload.categoryMs === "number"
@@ -304,15 +308,31 @@ async function handleRequest(
           : typeof payload.tierSec === "number"
             ? payload.tierSec * 1000
             : undefined;
-      const restartDelayMs =
-        typeof payload.restartMs === "number"
-          ? payload.restartMs
-          : typeof payload.restartSec === "number"
-            ? payload.restartSec * 1000
+      const autoStartIntervalMinMs =
+        typeof payload.autoStartIntervalMinMs === "number"
+          ? payload.autoStartIntervalMinMs
+          : typeof payload.autoStartIntervalMinMin === "number"
+            ? payload.autoStartIntervalMinMin * 60_000
             : undefined;
+      const autoStartIntervalMaxMs =
+        typeof payload.autoStartIntervalMaxMs === "number"
+          ? payload.autoStartIntervalMaxMs
+          : typeof payload.autoStartIntervalMaxMin === "number"
+            ? payload.autoStartIntervalMaxMin * 60_000
+            : undefined;
+      const restartDelayMs =
+        autoStartIntervalMinMs == null && autoStartIntervalMaxMs == null
+          ? typeof payload.restartMs === "number"
+            ? payload.restartMs
+            : typeof payload.restartSec === "number"
+              ? payload.restartSec * 1000
+              : undefined
+          : undefined;
       const snap = ctx.shopVote.setDurations({
         categoryDurationMs,
         tierDurationMs,
+        autoStartIntervalMinMs,
+        autoStartIntervalMaxMs,
         restartDelayMs,
       });
       ctx.onShopSettingsChange?.();

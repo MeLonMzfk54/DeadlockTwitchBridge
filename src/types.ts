@@ -27,7 +27,10 @@ export interface AppConfig {
   maxQueueSize: number;
   shopVoteCategoryMs: number;
   shopVoteTierMs: number;
+  /** Seed for auto-start interval when shop-vote.json lacks min/max (legacy SHOP_VOTE_RESTART_MS). */
   shopVoteRestartMs: number;
+  shopVoteAutoIntervalMinMs: number;
+  shopVoteAutoIntervalMaxMs: number;
 }
 
 export interface EffectRequest {
@@ -111,6 +114,9 @@ export interface ShopVoteStatus {
   maxAffordableTier: number | null;
   categoryDurationMs: number;
   tierDurationMs: number;
+  autoStartIntervalMinMs: number;
+  autoStartIntervalMaxMs: number;
+  /** @deprecated Alias of autoStartIntervalMaxMs. */
   restartDelayMs: number;
   recentVotes: { option: string; userId: string | null; at: number }[];
   settings?: {
@@ -118,7 +124,8 @@ export interface ShopVoteStatus {
     mockBotEnabled: boolean;
     categoryDurationMs: number;
     tierDurationMs: number;
-    restartDelayMs: number;
+    autoStartIntervalMinMs: number;
+    autoStartIntervalMaxMs: number;
     defaultStartMode: "full" | "category" | "tier";
     enabledCategories: string[];
     minTier: number;

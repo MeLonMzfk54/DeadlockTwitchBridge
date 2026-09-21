@@ -568,7 +568,8 @@ test("autoStart after purchase waits then starts a new full vote", async () => {
   const ctrl = new ShopVoteController(makeFakeClient(), bus, {
     categoryDurationMs: 60_000,
     tierDurationMs: 60_000,
-    restartDelayMs: 40,
+    autoStartIntervalMinMs: 100,
+    autoStartIntervalMaxMs: 100,
     mockBotIntervalMs: 60_000,
   });
 
@@ -597,8 +598,138 @@ test("autoStart after purchase waits then starts a new full vote", async () => {
     "http",
   );
   assert.equal(ctrl.getSnapshot().stage, "purchased");
-  await new Promise((r) => setTimeout(r, 80));
+  await new Promise((r) => setTimeout(r, 150));
   assert.equal(ctrl.getSnapshot().stage, "voting_combined");
+  ctrl.cancel();
+});
+
+test("autoStart on in_match schedules first vote", async () => {
+  const bus = new GameEventBus();
+  const ctrl = new ShopVoteController(makeFakeClient(), bus, {
+    categoryDurationMs: 60_000,
+    tierDurationMs: 60_000,
+    autoStartIntervalMinMs: 100,
+    autoStartIntervalMaxMs: 100,
+    mockBotIntervalMs: 60_000,
+  });
+  ctrl.setAutoStart(true);
+  assert.equal(ctrl.getSnapshot().stage, "idle");
+  bus.ingest(
+    {
+      v: 1,
+      id: "phase-pregame",
+      tsMs: Date.now(),
+      type: "phase",
+      payload: { phase: "pregame" },
+    },
+    "http",
+  );
+  assert.equal(ctrl.getSnapshot().stage, "idle");
+  bus.ingest(
+    {
+      v: 1,
+      id: "phase-in-match",
+      tsMs: Date.now(),
+      type: "phase",
+      payload: { phase: "in_match" },
+    },
+    "http",
+  );
+  await new Promise((r) => setTimeout(r, 150));
+  assert.equal(ctrl.getSnapshot().stage, "voting_combined");
+  ctrl.cancel();
+});
+
+test("autoStart schedules when enabling mid-match via syncFromMatchPhase", async () => {
+  const bus = new GameEventBus();
+  const ctrl = new ShopVoteController(makeFakeClient(), bus, {
+    categoryDurationMs: 60_000,
+    tierDurationMs: 60_000,
+    autoStartIntervalMinMs: 100,
+    autoStartIntervalMaxMs: 100,
+    mockBotIntervalMs: 60_000,
+  });
+  ctrl.syncFromMatchPhase("in_match", false);
+  assert.equal(ctrl.getSnapshot().stage, "idle");
+  ctrl.setAutoStart(true);
+  await new Promise((r) => setTimeout(r, 150));
+  assert.equal(ctrl.getSnapshot().stage, "voting_combined");
+  ctrl.cancel();
+});
+
+test("autoStart schedules on paused→in_match (custom lobby false pause)", async () => {
+  const bus = new GameEventBus();
+  const ctrl = new ShopVoteController(makeFakeClient(), bus, {
+    categoryDurationMs: 60_000,
+    tierDurationMs: 60_000,
+    autoStartIntervalMinMs: 100,
+    autoStartIntervalMaxMs: 100,
+    mockBotIntervalMs: 60_000,
+  });
+  ctrl.setAutoStart(true);
+  // False pause first — still "inside" match for auto-start (paused is active).
+  bus.ingest(
+    {
+      v: 1,
+      id: "phase-paused-first",
+      tsMs: Date.now(),
+      type: "phase",
+      payload: { phase: "paused" },
+    },
+    "http",
+  );
+  await new Promise((r) => setTimeout(r, 150));
+  assert.equal(ctrl.getSnapshot().stage, "voting_combined");
+  ctrl.cancel();
+});
+
+test("autoStart cancelled on match_end", async () => {
+  const bus = new GameEventBus();
+  const ctrl = new ShopVoteController(makeFakeClient(), bus, {
+    categoryDurationMs: 60_000,
+    tierDurationMs: 60_000,
+    autoStartIntervalMinMs: 200,
+    autoStartIntervalMaxMs: 200,
+    mockBotIntervalMs: 60_000,
+  });
+  ctrl.setAutoStart(true);
+  bus.ingest(
+    {
+      v: 1,
+      id: "phase-in-match-2",
+      tsMs: Date.now(),
+      type: "phase",
+      payload: { phase: "in_match" },
+    },
+    "http",
+  );
+  bus.ingest(
+    {
+      v: 1,
+      id: "phase-end",
+      tsMs: Date.now(),
+      type: "phase",
+      payload: { phase: "match_end" },
+    },
+    "http",
+  );
+  await new Promise((r) => setTimeout(r, 250));
+  assert.equal(ctrl.getSnapshot().stage, "idle");
+  ctrl.cancel();
+});
+
+test("start clears recentVotes", async () => {
+  const bus = new GameEventBus();
+  const ctrl = new ShopVoteController(makeFakeClient(), bus, {
+    categoryDurationMs: 60_000,
+    tierDurationMs: 60_000,
+    mockBotIntervalMs: 60_000,
+  });
+  await ctrl.start("full");
+  ctrl.cast("weapon");
+  assert.ok(ctrl.getSnapshot().recentVotes.length >= 1);
+  await ctrl.start("full");
+  assert.equal(ctrl.getSnapshot().recentVotes.length, 0);
   ctrl.cancel();
 });
 

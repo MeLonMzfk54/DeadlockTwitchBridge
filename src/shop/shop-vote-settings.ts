@@ -19,12 +19,15 @@ export const DEFAULT_CHAT_ANNOUNCE_COMBINED =
   "Голосование! Тип: {options}. Тир: {tierOptions}. Можно вместе: !w 1. {seconds} сек.";
 
 export interface ShopVoteSettings {
-  /** After a successful purchase, wait restartDelayMs then start a new vote (shop need not be open). */
+  /** When true: schedule votes on match enter + after purchase (random interval min–max). */
   autoStart: boolean;
   mockBotEnabled: boolean;
   categoryDurationMs: number;
   tierDurationMs: number;
-  restartDelayMs: number;
+  /** Inclusive lower bound for auto-start delay between votes (ms). */
+  autoStartIntervalMinMs: number;
+  /** Inclusive upper bound for auto-start delay between votes (ms). */
+  autoStartIntervalMaxMs: number;
   /** Mode used by auto-start / auto-restart / HUD start. */
   defaultStartMode: ShopStartMode;
   /** Categories chat/panel may vote for (at least one). */
@@ -55,20 +58,44 @@ export interface ShopVoteSettings {
 export interface ShopVoteSettingsSeed {
   categoryDurationMs?: number;
   tierDurationMs?: number;
+  /** Legacy single restart delay — used as both min and max when interval fields absent. */
   restartDelayMs?: number;
+  autoStartIntervalMinMs?: number;
+  autoStartIntervalMaxMs?: number;
 }
 
 export const DEFAULT_SHOP_VOTE_APPLY_DELAY_MS = 0;
 export const DEFAULT_SHOP_VOTE_MOCK_INTERVAL_MS = 900;
 export const DEFAULT_SHOP_VOTE_OVERLAY_HOLD_MS = 8_000;
+/** Default auto-start window: 3–8 minutes. */
+export const DEFAULT_SHOP_VOTE_AUTO_INTERVAL_MIN_MS = 180_000;
+export const DEFAULT_SHOP_VOTE_AUTO_INTERVAL_MAX_MS = 480_000;
+
+function normalizeIntervalBounds(minMs: number, maxMs: number): { min: number; max: number } {
+  let min = Math.max(100, Math.round(minMs));
+  let max = Math.max(100, Math.round(maxMs));
+  if (min > max) {
+    const t = min;
+    min = max;
+    max = t;
+  }
+  return { min, max };
+}
 
 export function defaultShopVoteSettings(seed: ShopVoteSettingsSeed = {}): ShopVoteSettings {
+  const legacyRestart = seed.restartDelayMs;
+  const minRaw =
+    seed.autoStartIntervalMinMs ?? legacyRestart ?? DEFAULT_SHOP_VOTE_AUTO_INTERVAL_MIN_MS;
+  const maxRaw =
+    seed.autoStartIntervalMaxMs ?? legacyRestart ?? DEFAULT_SHOP_VOTE_AUTO_INTERVAL_MAX_MS;
+  const { min, max } = normalizeIntervalBounds(minRaw, maxRaw);
   return {
     autoStart: false,
     mockBotEnabled: false,
     categoryDurationMs: seed.categoryDurationMs ?? 25_000,
     tierDurationMs: seed.tierDurationMs ?? 25_000,
-    restartDelayMs: seed.restartDelayMs ?? 25_000,
+    autoStartIntervalMinMs: min,
+    autoStartIntervalMaxMs: max,
     defaultStartMode: "full",
     enabledCategories: [...ALL_CATEGORIES],
     minTier: 1,
@@ -160,9 +187,27 @@ export function mergeShopVoteSettings(
   if (isPositiveMs(partial.tierDurationMs)) {
     next.tierDurationMs = Math.round(partial.tierDurationMs);
   }
-  if (isPositiveMs(partial.restartDelayMs)) {
-    next.restartDelayMs = Math.round(partial.restartDelayMs);
+
+  // Legacy fixed restartDelayMs → both min and max (when interval fields not also set).
+  const hasMin = isPositiveMs(partial.autoStartIntervalMinMs);
+  const hasMax = isPositiveMs(partial.autoStartIntervalMaxMs);
+  const legacyRestart = (partial as { restartDelayMs?: unknown }).restartDelayMs;
+  if (isPositiveMs(legacyRestart) && !hasMin && !hasMax) {
+    const ms = Math.round(legacyRestart);
+    next.autoStartIntervalMinMs = ms;
+    next.autoStartIntervalMaxMs = ms;
   }
+  if (hasMin) next.autoStartIntervalMinMs = Math.round(partial.autoStartIntervalMinMs as number);
+  if (hasMax) next.autoStartIntervalMaxMs = Math.round(partial.autoStartIntervalMaxMs as number);
+  {
+    const bounds = normalizeIntervalBounds(
+      next.autoStartIntervalMinMs,
+      next.autoStartIntervalMaxMs,
+    );
+    next.autoStartIntervalMinMs = bounds.min;
+    next.autoStartIntervalMaxMs = bounds.max;
+  }
+
   if ("defaultStartMode" in partial) {
     next.defaultStartMode = parseStartMode(partial.defaultStartMode, next.defaultStartMode);
   }
@@ -338,4 +383,17 @@ export function formatShopChatAnnounce(input: FormatShopChatAnnounceInput): stri
   return filled.length > TWITCH_CHAT_MESSAGE_MAX_LEN
     ? filled.slice(0, TWITCH_CHAT_MESSAGE_MAX_LEN)
     : filled;
+}
+
+/** Pick a random delay in [min, max] inclusive (ms). */
+export function randomAutoStartDelayMs(
+  settings: Pick<ShopVoteSettings, "autoStartIntervalMinMs" | "autoStartIntervalMaxMs">,
+  random: () => number = Math.random,
+): number {
+  const { min, max } = normalizeIntervalBounds(
+    settings.autoStartIntervalMinMs,
+    settings.autoStartIntervalMaxMs,
+  );
+  if (min === max) return min;
+  return Math.round(min + random() * (max - min));
 }

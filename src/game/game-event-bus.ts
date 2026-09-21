@@ -157,6 +157,10 @@ export class GameEventBus extends EventEmitter<{
     if (typeof payload.shopOpen === "boolean") {
       this.match.shopOpen = payload.shopOpen;
     }
+    // Never wipe a known clock with empty heartbeat payload.
+    if (typeof payload.clock === "string" && payload.clock.trim()) {
+      this.match.clock = payload.clock.trim();
+    }
     if (typeof payload.dead === "boolean") {
       this.match.dead = payload.dead;
     }
@@ -214,7 +218,9 @@ export class GameEventBus extends EventEmitter<{
         this.match.respawnSec = null;
         break;
       case "score":
-        if (typeof p.clock === "string") this.match.clock = p.clock;
+        if (typeof p.clock === "string" && p.clock.trim()) {
+          this.match.clock = p.clock.trim();
+        }
         if (typeof p.friendlyKills === "number") this.match.friendlyKills = p.friendlyKills;
         if (typeof p.enemyKills === "number") this.match.enemyKills = p.enemyKills;
         break;

@@ -273,33 +273,56 @@
         HOLD_STAGES.has(stage) ||
         stage === "waiting_shop";
 
+      const isLiveVoting =
+        stage === "voting_category" ||
+        stage === "voting_tier" ||
+        stage === "voting_combined";
+      const catTally = snap.categoryTally || {};
+      const tierTally = snap.tierTally || {};
+      const catTotal =
+        Number(catTally.weapon || 0) +
+        Number(catTally.vitality || 0) +
+        Number(catTally.spirit || 0);
+      const tierTotal =
+        Number(tierTally["1"] || 0) +
+        Number(tierTally["2"] || 0) +
+        Number(tierTally["3"] || 0) +
+        Number(tierTally["4"] || 0);
+      // During live voting with no ballots yet — show rows without fake 0% "votes".
+      const hideEmptyPct = isLiveVoting && catTotal + tierTotal === 0;
+
       const parts = [];
       if (showCats) {
         const pct = snap.categoryPct || {};
-        const winner = snap.winnerCategory;
+        const winner = hideEmptyPct ? null : snap.winnerCategory;
         for (const key of ["weapon", "vitality", "spirit"]) {
-          const p = pct[key] != null ? Number(pct[key]) : 0;
+          const p = hideEmptyPct ? null : pct[key] != null ? Number(pct[key]) : 0;
           const win = winner === key ? " winner" : "";
+          const barW = p == null ? 0 : Math.min(100, Math.max(0, p));
+          const pctLabel = p == null ? "—" : `${p}%`;
           parts.push(
             `<div class="sv-row${win}">` +
               `<span class="sv-name">${CAT_LABELS[key]}</span>` +
-              `<div class="sv-bar-wrap"><div class="sv-bar" style="width:${Math.min(100, Math.max(0, p))}%"></div></div>` +
-              `<span class="sv-pct">${p}%</span>` +
+              `<div class="sv-bar-wrap"><div class="sv-bar" style="width:${barW}%"></div></div>` +
+              `<span class="sv-pct">${pctLabel}</span>` +
             `</div>`
           );
         }
       }
       if (showTiers) {
         const pct = snap.tierPct || {};
-        const winnerTier = snap.winnerTier != null ? String(snap.winnerTier) : null;
+        const winnerTier =
+          hideEmptyPct || snap.winnerTier == null ? null : String(snap.winnerTier);
         for (const key of ["1", "2", "3", "4"]) {
-          const p = pct[key] != null ? Number(pct[key]) : 0;
+          const p = hideEmptyPct ? null : pct[key] != null ? Number(pct[key]) : 0;
           const win = winnerTier === key ? " winner" : "";
+          const barW = p == null ? 0 : Math.min(100, Math.max(0, p));
+          const pctLabel = p == null ? "—" : `${p}%`;
           parts.push(
             `<div class="sv-row${win}">` +
               `<span class="sv-name">Tier ${key}</span>` +
-              `<div class="sv-bar-wrap"><div class="sv-bar" style="width:${Math.min(100, Math.max(0, p))}%"></div></div>` +
-              `<span class="sv-pct">${p}%</span>` +
+              `<div class="sv-bar-wrap"><div class="sv-bar" style="width:${barW}%"></div></div>` +
+              `<span class="sv-pct">${pctLabel}</span>` +
             `</div>`
           );
         }

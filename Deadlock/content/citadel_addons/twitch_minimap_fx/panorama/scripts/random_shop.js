@@ -151,6 +151,22 @@
     // ============================================================
     // Random tab activation / deactivation
     // ============================================================
+    /** Vote/apply/wait stages that must keep the Random overlay open. */
+    function voteWantsRandomTab() {
+        var vs = '';
+        try {
+            if (typeof globalThis !== 'undefined') {
+                vs = String(globalThis.__twitch_bridge_last_vote_stage || '');
+            }
+        } catch (eVs) {}
+        return vs === 'voting_category' ||
+            vs === 'voting_tier' ||
+            vs === 'voting_combined' ||
+            vs === 'applying' ||
+            vs === 'rolled' ||
+            vs === 'waiting_shop';
+    }
+
     function snapshotShowingClasses(root) {
         _activatedWithShowing = [];
         for (var i = 0; i < ALL_SHOWING.length; i++) {
@@ -160,15 +176,29 @@
 
     function ActivateRandomTab() {
         var root = $.GetContextPanel();
+        var already = false;
+        try { already = root.BHasClass('gShowingRandom'); } catch (eAl) {}
         snapshotShowingClasses(root);
         root.AddClass('gShowingRandom');
         updateAffordability();
-        $.Msg('[RandomShop] Random tab activated');
+        // Engine may add showingWeapon/Armor/Tech a frame later — refresh snapshot
+        // so watchNativeTabActivation does not treat it as a user tab switch.
+        $.Schedule(0.08, function () {
+            try {
+                var r = $.GetContextPanel();
+                if (r && r.BHasClass('gShowingRandom')) snapshotShowingClasses(r);
+            } catch (eSnap) {}
+        });
+        if (!already) $.Msg('[RandomShop] Random tab activated');
     }
 
     function DeactivateRandomTab() {
         var root = $.GetContextPanel();
         if (!root.BHasClass('gShowingRandom')) return;
+        // Keep Random open for the whole vote/apply/wait pipeline.
+        if (voteWantsRandomTab()) {
+            return;
+        }
         // Keep rolled item + purchase queue visible (vote may buy when player enters shop range).
         // Do NOT remove gShowingRandom while purchase is still pending — overlay would blank the item.
         if (state.mode === 'rolled' && (purchase.phase === 'pending' || purchase.phase === 'attempting' || purchase.phase === 'waiting_shop')) {
@@ -256,8 +286,9 @@
     // Poll every 50ms: deactivate Random tab only when a NEW showingX class appears
     // (one that was not present when Random was activated). This prevents false
     // triggers from the pre-existing showingX class of the previously active tab.
+    // During vote/apply/wait, ignore native tab switches entirely.
     function watchNativeTabActivation() {
-        if (!_suppressDeactivation) {
+        if (!_suppressDeactivation && !voteWantsRandomTab()) {
             var root = $.GetContextPanel();
             if (root.BHasClass('gShowingRandom')) {
                 for (var i = 0; i < ALL_SHOWING.length; i++) {
@@ -509,10 +540,8 @@
                 var nums = [];
                 collectNumbers(goldAP, nums, 0);
                 if (nums.length > 0) {
-                    $.Msg('[RandomShop] GoldAP nums=' + nums.join(','));
                     // Souls are at index 2 in GoldAPContainer's label list.
                     var souls = nums.length > 2 ? nums[2] : nums[0];
-                    $.Msg('[RandomShop] getSouls GoldAP=' + souls);
                     return souls;
                 }
             }
@@ -523,7 +552,6 @@
                 collectNumbers(soulPanel, nums2, 0);
                 if (nums2.length > 0) {
                     nums2.sort(function (a, b) { return b - a; });
-                    $.Msg('[RandomShop] getSouls SoulAmount(fallback)=' + nums2[0]);
                     return nums2[0];
                 }
             }
@@ -1034,14 +1062,16 @@
         if (open) {
             // HUD may have rebooted while waiting — restore rolled icon + purchase queue.
             if (tryRestorePendingRoll('shop_open')) return;
-            if (state.mode === 'rolled') {
+            if (state.mode === 'rolled' || voteWantsRandomTab()) {
                 ActivateRandomTab();
-                updateRolledDisplay();
-                if (purchase.phase === 'waiting_shop' || purchase.phase === 'pending') {
-                    purchase.lastWaitingReason = '';
-                    purchase.uiFallbackDone = false;
-                    purchase.phase = 'pending';
-                    schedulePurchaseTick(purchase.gen, 0.1);
+                if (state.mode === 'rolled') {
+                    updateRolledDisplay();
+                    if (purchase.phase === 'waiting_shop' || purchase.phase === 'pending') {
+                        purchase.lastWaitingReason = '';
+                        purchase.uiFallbackDone = false;
+                        purchase.phase = 'pending';
+                        schedulePurchaseTick(purchase.gen, 0.1);
+                    }
                 }
             }
         }
@@ -1053,6 +1083,7 @@
             watchShopOpen._last = open;
         } else if (watchShopOpen._last !== open) {
             watchShopOpen._last = open;
+            // Open/close transitions only (not every poll).
             $.Msg('[RandomShop] gShopOpen -> ' + open);
             notifyShopOpenChanged(open);
             try {
@@ -1071,6 +1102,11 @@
                 if (root && !root.BHasClass('gShowingRandom')) ActivateRandomTab();
                 if (root && !root.BHasClass('rs-mode-rolled')) setMode('rolled');
             } catch (eKeep) {}
+        } else if (open && voteWantsRandomTab()) {
+            // Vote/apply in progress — keep Random tab even if engine cleared the class.
+            try {
+                ActivateRandomTab();
+            } catch (eKeepV) {}
         }
         $.Schedule(0.1, watchShopOpen);
     }

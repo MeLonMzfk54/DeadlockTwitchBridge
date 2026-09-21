@@ -411,8 +411,11 @@
       </div>
       <label class="check-row">
         <input type="checkbox" id="shopAutoStart" onchange="setShopAutoStart(this.checked)" />
-        После покупки — новый цикл
+        Автозапуск голосования (в матче / после покупки)
       </label>
+      <p style="margin:0 0 8px;font-size:0.8rem;color:var(--muted)">
+        Включите и задайте интервал мин/макс ниже. Срабатывает при входе в матч и после успешной покупки.
+      </p>
       <label class="check-row">
         <input type="checkbox" id="shopAllowHudStart" onchange="setShopSettingsFromUi()" />
         Кнопка Start/Skip в HUD магазина
@@ -476,8 +479,12 @@
           <input id="shopTierDuration" type="number" min="1" max="180" step="1" value="25" onchange="setShopDurations()" />
         </label>
         <label>
-          Пауза после покупки (сек)
-          <input id="shopRestartDuration" type="number" min="1" max="180" step="1" value="25" onchange="setShopDurations()" />
+          Автозапуск мин (мин)
+          <input id="shopAutoIntervalMin" type="number" min="0.5" max="60" step="0.5" value="3" onchange="setShopDurations()" />
+        </label>
+        <label>
+          Автозапуск макс (мин)
+          <input id="shopAutoIntervalMax" type="number" min="0.5" max="60" step="0.5" value="8" onchange="setShopDurations()" />
         </label>
       </div>
       <div class="duration-row">
@@ -881,8 +888,16 @@
       }
       syncDurationInput("shopCatDuration", s.categoryDurationMs);
       syncDurationInput("shopTierDuration", s.tierDurationMs);
-      syncDurationInput("shopRestartDuration", s.restartDelayMs);
-      syncShopSettingsUi(s.settings || {});
+      const cfg = s.settings || {};
+      syncIntervalMinInput(
+        "shopAutoIntervalMin",
+        cfg.autoStartIntervalMinMs ?? s.autoStartIntervalMinMs ?? s.restartDelayMs,
+      );
+      syncIntervalMinInput(
+        "shopAutoIntervalMax",
+        cfg.autoStartIntervalMaxMs ?? s.autoStartIntervalMaxMs ?? s.restartDelayMs,
+      );
+      syncShopSettingsUi(cfg);
 
       let timerLabel = "—";
       if (s.stageEndsAt && (s.stage === "voting_category" || s.stage === "voting_tier" || s.stage === "voting_combined")) {
@@ -1005,6 +1020,13 @@
       if (!el || document.activeElement === el) return;
       const sec = Math.max(1, Math.round((Number(ms) || 25000) / 1000));
       if (Number(el.value) !== sec) el.value = String(sec);
+    }
+
+    function syncIntervalMinInput(id, ms) {
+      const el = document.getElementById(id);
+      if (!el || document.activeElement === el) return;
+      const mins = Math.round(((Number(ms) || 180000) / 60000) * 10) / 10;
+      if (Number(el.value) !== mins) el.value = String(mins);
     }
 
     function syncMsInput(id, ms, fallback) {
@@ -1213,11 +1235,17 @@
     async function setShopDurations() {
       const categorySec = Number(document.getElementById("shopCatDuration").value);
       const tierSec = Number(document.getElementById("shopTierDuration").value);
-      const restartSec = Number(document.getElementById("shopRestartDuration").value);
+      const autoStartIntervalMinMin = Number(document.getElementById("shopAutoIntervalMin").value);
+      const autoStartIntervalMaxMin = Number(document.getElementById("shopAutoIntervalMax").value);
       const snap = await api("/api/shop-vote/durations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ categorySec, tierSec, restartSec }),
+        body: JSON.stringify({
+          categorySec,
+          tierSec,
+          autoStartIntervalMinMin,
+          autoStartIntervalMaxMin,
+        }),
       });
       renderShopVote(snap);
     }
