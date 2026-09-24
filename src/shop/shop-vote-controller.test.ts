@@ -603,6 +603,44 @@ test("autoStart after purchase waits then starts a new full vote", async () => {
   ctrl.cancel();
 });
 
+test("autoStart after failed purchase waits then starts a new full vote", async () => {
+  const bus = new GameEventBus();
+  const ctrl = new ShopVoteController(makeFakeClient(), bus, {
+    categoryDurationMs: 60_000,
+    tierDurationMs: 60_000,
+    autoStartIntervalMinMs: 100,
+    autoStartIntervalMaxMs: 100,
+    mockBotIntervalMs: 60_000,
+  });
+
+  ctrl.setAutoStart(true);
+  await ctrl.apply("weapon", 1);
+  bus.ingest(
+    {
+      v: 1,
+      id: "rolled-fail-restart",
+      tsMs: Date.now(),
+      type: "shop_rolled",
+      payload: { name: "Extra Charge", cls: "extraCharge", tier: 1 },
+    },
+    "http",
+  );
+  bus.ingest(
+    {
+      v: 1,
+      id: "buy-fail-restart",
+      tsMs: Date.now(),
+      type: "shop_purchase",
+      payload: { ok: false, name: "Extra Charge" },
+    },
+    "http",
+  );
+  assert.equal(ctrl.getSnapshot().stage, "failed");
+  await new Promise((r) => setTimeout(r, 150));
+  assert.equal(ctrl.getSnapshot().stage, "voting_combined");
+  ctrl.cancel();
+});
+
 test("autoStart on in_match schedules first vote", async () => {
   const bus = new GameEventBus();
   const ctrl = new ShopVoteController(makeFakeClient(), bus, {

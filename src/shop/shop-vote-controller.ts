@@ -1086,7 +1086,7 @@ export class ShopVoteController extends EventEmitter<{
       this.clearVoteResults();
       this.push(ok ? "vote tallies cleared after purchase" : "vote tallies cleared after fail");
       this.emitUpdate();
-      if (ok) this.scheduleAutoRestart();
+      this.scheduleAutoRestart();
       return;
     }
     if (evt.type === "shop_error") {
@@ -1112,6 +1112,7 @@ export class ShopVoteController extends EventEmitter<{
       this.clearVoteResults();
       this.push("vote tallies cleared after fail");
       this.emitUpdate();
+      this.scheduleAutoRestart();
       return;
     }
     if (evt.type === "shop_cmd") {
@@ -1261,7 +1262,7 @@ export class ShopVoteController extends EventEmitter<{
         this.push(`auto-restart aborted (phase=${this.matchPhase || "unknown"})`);
         return;
       }
-      if (this.stage !== "purchased" && this.stage !== "idle") return;
+      if (this.stage !== "purchased" && this.stage !== "idle" && this.stage !== "failed") return;
       void this.start(this.settings.defaultStartMode);
     }, delayMs);
   }

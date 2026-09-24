@@ -80,7 +80,6 @@
     var BACKGROUND_RETRY_SEC = 2.0;
     var WAIT_POLL_SEC = 1.0;
     var ATTEMPT_TIMEOUT_SEC = 2.5;
-    var PURCHASE_DEADLINE_SEC = 120.0;
     var _pendingRollSeq = 0;
 
     /** Survive shop HUD recreate: roll often happens while panel is closed. */
@@ -1023,16 +1022,7 @@
             emitPurchaseWaiting('awaiting_shop_range');
         }
 
-        $.Schedule(PURCHASE_DEADLINE_SEC, function () {
-            if (gen !== purchase.gen) return;
-            if (state.mode !== 'rolled') return;
-            if (isRolledItemOwned()) {
-                onItemPurchased(true);
-                return;
-            }
-            onItemPurchased(false);
-        });
-
+        // No overall deadline: keep the roll until buy, Skip, or a new vote seq.
         schedulePurchaseTick(gen, isShopUiOpen() ? 0.25 : 0.5);
     }
 
