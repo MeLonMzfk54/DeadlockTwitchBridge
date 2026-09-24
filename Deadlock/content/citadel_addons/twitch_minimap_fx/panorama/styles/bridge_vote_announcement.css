@@ -1,0 +1,96 @@
+/* Position matches CitadelHudGameAnnouncements #ToastManager.
+   Title color is not in the game stylesheet — mint green from the gift banner. */
+
+.BridgeVoteAnnounceHost
+{
+	width: fit-children;
+	height: fit-children;
+	horizontal-align: center;
+	vertical-align: top;
+	margin-top: 48px;
+	padding: 10px 36px 14px 36px;
+	flow-children: down;
+	z-index: 1000;
+	overflow: noclip;
+	background-color: #102018f2;
+	opacity: 1;
+	visibility: visible;
+}
+
+.BridgeVoteAnnounceHost .GenericAnnouncement
+{
+	padding: 0px;
+	width: fit-children;
+	height: fit-children;
+	flow-children: down;
+}
+
+.BridgeVoteAnnounce
+{
+	horizontal-align: center;
+	vertical-align: center;
+	flow-children: down;
+	opacity: 1;
+	visibility: visible;
+}
+
+.BridgeVoteAnnounce.ToastVisible
+{
+	opacity: 1;
+	visibility: visible;
+}
+
+.BridgeVoteAnnounce.Hidden,
+.BridgeVoteAnnounceHost.Hidden
+{
+	opacity: 0;
+	visibility: collapse;
+}
+
+.BridgeVoteAnnounceHost Label.AnnouncementTitle
+{
+	color: #6dffc2;
+	font-size: 42px;
+	white-space: nowrap;
+	transform: none;
+	margin: 0px;
+	horizontal-align: center;
+}
+
+.BridgeVoteAnnounceHost Label.AnnouncementDescription
+{
+	font-size: 22px;
+	opacity: 0.9;
+	white-space: nowrap;
+	transform: none;
+	margin-top: 2px;
+	horizontal-align: center;
+	text-align: center;
+}
+
+@keyframes 'brawlAnnouncementAnimation'
+{
+	0%
+	{
+		opacity: 0;
+		pre-transform-scale2d: 0.8;
+	}
+
+	15%
+	{
+		opacity: 1;
+		pre-transform-scale2d: 1.2;
+	}
+
+	30%
+	{
+		opacity: 1;
+		pre-transform-scale2d: 1;
+	}
+
+	90%
+	{
+		opacity: 1;
+		pre-transform-scale2d: 1;
+	}
+}

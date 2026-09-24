@@ -4,3 +4,5 @@ dist/
 config/rewards.json
 config/shop-vote.json
 *.log
+/.cursor/plans
+random-shop

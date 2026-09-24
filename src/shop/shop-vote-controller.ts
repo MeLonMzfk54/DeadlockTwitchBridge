@@ -161,6 +161,12 @@ export interface ShopVoteSnapshot {
   recentVotes: ShopRecentVote[];
   /** Persistent prefs (also mirrored in flat fields above for older clients). */
   settings: ShopVoteSettings;
+  /** One-shot banner command for the PNG `banner` slot. 0 = none. */
+  bannerSeq: number;
+  /** 1 category, 2 tier, 3 combined, 4 end. */
+  bannerKind: number;
+  /** Winner pack cat*10+tier, or 0. */
+  bannerWin: number;
 }
 
 export interface ShopCmdPayload {
@@ -260,6 +266,10 @@ export class ShopVoteController extends EventEmitter<{
   private winnerCategory: ShopCategory | null = null;
   private winnerTier: ShopTier | null = null;
   private lastSeq = 0;
+  /** Separate from shop apply seq — banner test must not bump a pending roll. */
+  private lastBannerSeq = 0;
+  private lastBannerKind = 0;
+  private lastBannerWin = 0;
   private lastCfg: { seq: number; cat: number; tier: number } | null = null;
   private cmdReceived = false;
   private lastRolled: Record<string, unknown> | null = null;
@@ -425,6 +435,9 @@ export class ShopVoteController extends EventEmitter<{
       restartDelayMs: this.autoStartIntervalMaxMs,
       recentVotes: this.recentVotes.map((v) => ({ ...v })),
       settings: this.getSettings(),
+      bannerSeq: this.lastBannerSeq,
+      bannerKind: this.lastBannerKind,
+      bannerWin: this.lastBannerWin,
     };
   }
 
@@ -921,6 +934,21 @@ export class ShopVoteController extends EventEmitter<{
   private bumpSeq(): number {
     this.lastSeq = this.lastSeq >= SHOP_CMD_SEQ_MAX ? 1 : this.lastSeq + 1;
     return this.lastSeq;
+  }
+
+  /**
+   * One-shot HUD banner via the shop PNG `banner` slot (same image queue).
+   * kind: 1 category, 2 tier, 3 combined, 4 end. win is cat*10+tier (0 = none).
+   */
+  async showTestBanner(kind: 1 | 2 | 3 | 4, win = 0): Promise<{ seq: number; kind: number; win: number }> {
+    const seq = this.lastBannerSeq >= SHOP_CMD_SEQ_MAX ? 1 : this.lastBannerSeq + 1;
+    const safeWin = win >= 0 && win <= 34 ? win : 0;
+    this.lastBannerSeq = seq;
+    this.lastBannerKind = kind;
+    this.lastBannerWin = safeWin;
+    this.push(`banner png seq=${seq} kind=${kind} win=${safeWin}`);
+    this.emitUpdate();
+    return { seq, kind, win: safeWin };
   }
 
   private async sendCfg(category: ShopCategory, tier: ShopTier): Promise<void> {

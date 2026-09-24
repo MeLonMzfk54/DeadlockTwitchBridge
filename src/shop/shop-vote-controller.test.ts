@@ -36,6 +36,26 @@ test("tallyPercents: largest remainder sums to 100", () => {
   assert.ok(Object.values(pct).every((n) => n === 33 || n === 34));
 });
 
+test("banner test png does not change shop stage or apply seq", async () => {
+  const sent: string[][] = [];
+  const bus = new GameEventBus();
+  const ctrl = new ShopVoteController(makeFakeClient(sent), bus, {
+    categoryDurationMs: 60_000,
+    tierDurationMs: 60_000,
+    mockBotIntervalMs: 60_000,
+  });
+  const before = ctrl.getSnapshot();
+  const result = await ctrl.showTestBanner(4, 11);
+  const after = ctrl.getSnapshot();
+  assert.deepEqual(result, { seq: 1, kind: 4, win: 11 });
+  assert.equal(after.stage, before.stage);
+  assert.equal(after.lastSeq, before.lastSeq);
+  assert.equal(after.bannerSeq, 1);
+  assert.equal(after.bannerKind, 4);
+  assert.equal(after.bannerWin, 11);
+  assert.equal(sent.length, 0);
+});
+
 test("parseShopCategory / parseShopTier", () => {
   assert.equal(parseShopCategory("weapon"), "weapon");
   assert.equal(parseShopCategory(2), "vitality");

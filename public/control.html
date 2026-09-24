@@ -541,6 +541,13 @@
         <button class="danger" onclick="shopCancel()">Cancel</button>
         <button class="danger" onclick="shopSkip()">Skip покупки</button>
       </div>
+      <div class="inline-actions">
+        <button onclick="shopBannerTest('start')">Тест баннера: старт</button>
+        <button onclick="shopBannerTest('end')">Тест баннера: конец</button>
+      </div>
+      <p style="margin:0 0 8px;font-size:0.8rem;color:var(--muted)">
+        Баннер на топ-баре. Кнопка кладёт команду в PNG-слот <code>banner</code> той же очереди, что и проценты магазина. Кадр читается только на вкладке рандома.
+      </p>
       <h3 style="margin:16px 0 4px;font-size:1rem">Категория</h3>
       <div class="tally-grid" id="shopCatTally"></div>
       <h3 style="margin:12px 0 4px;font-size:1rem">Тир</h3>
@@ -1182,6 +1189,21 @@
     async function shopSkip() {
       const snap = await api("/api/shop-vote/skip", { method: "POST" });
       renderShopVote(snap);
+    }
+
+    async function shopBannerTest(kind) {
+      const body = kind === "end"
+        ? { kind: "end", category: "weapon", tier: 2 }
+        : { kind: "category" };
+      const result = await api("/api/shop-vote/banner-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const label = document.getElementById("shopResult");
+      if (label) {
+        label.textContent = "Баннер seq=" + result.seq + " kind=" + result.kind;
+      }
     }
 
     async function shopCast(option) {

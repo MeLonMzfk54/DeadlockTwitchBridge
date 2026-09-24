@@ -57,6 +57,9 @@ function fakeSnap(partial: Partial<ShopVoteSnapshot>): ShopVoteSnapshot {
     autoStartIntervalMaxMs: 480_000,
     restartDelayMs: 480_000,
     recentVotes: [],
+    bannerSeq: 0,
+    bannerKind: 0,
+    bannerWin: 0,
     settings: {
       autoStart: false,
       mockBotEnabled: false,
@@ -275,6 +278,7 @@ test("tierPctFromSlots and parseHudSlot", () => {
   });
   assert.equal(parseHudSlot("cats"), "cats");
   assert.equal(parseHudSlot("cmd"), "cmd");
+  assert.equal(parseHudSlot("banner"), "banner");
   assert.equal(parseHudSlot("nope"), null);
   assert.equal(timerSecondsFromSnapshot({ stageEndsAt: null }), 0);
 });
@@ -318,6 +322,22 @@ test("cmd slot encodes skip as h=0 with bumped seq", () => {
   assert.equal(size.height, encodeLevel(0, 60));
   assert.equal(decodeLevel(size.width, 1, CMD_SEQ_MAX), 7);
   assert.equal(decodeLevel(size.height, 1, 60), 0);
+});
+
+test("banner slot encodes seq and kind*40+win without touching cmd", () => {
+  const snap = fakeSnap({
+    stage: "idle",
+    lastCfg: null,
+    bannerSeq: 3,
+    bannerKind: 4,
+    bannerWin: 11,
+  });
+  assert.deepEqual(levelsForSlot(snap, "banner"), { w: 3, h: 4 * 40 + 11 });
+  assert.deepEqual(levelsForSlot(snap, "cmd"), { w: 0, h: 0 });
+  const png = getHudSlotPng(snap, "banner");
+  const size = readPngSize(png);
+  assert.equal(decodeLevel(size.width, 1, CMD_SEQ_MAX), 3);
+  assert.equal(decodeLevel(size.height, 1, 200), 171);
 });
 
 test("cmd slot is empty when no lastCfg", () => {

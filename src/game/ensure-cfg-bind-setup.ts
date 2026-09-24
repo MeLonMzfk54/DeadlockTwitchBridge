@@ -7,6 +7,9 @@ const SHOP_CVAR_LINES = [
   "bridge_shop_seq 0",
   "bridge_shop_cat 0",
   "bridge_shop_tier 0",
+  "bridge_vote_banner_seq 0",
+  "bridge_vote_banner_kind 0",
+  "bridge_vote_banner_win 0",
 ];
 
 export interface CfgBindSetupOptions {

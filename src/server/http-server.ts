@@ -179,7 +179,7 @@ async function handleRequest(
       ctx.shopVote.syncFromMatchPhase(match.phase || "", match.shopOpen);
       const slot = parseHudSlot(url.searchParams.get("slot"));
       if (!slot) {
-        return json(res, 400, { error: "slot=cats|t12|t34|meta|cmd required" });
+        return json(res, 400, { error: "slot=cats|t12|t34|meta|cmd|banner required" });
       }
       return png(res, getHudSlotPng(ctx.shopVote.getSnapshot(), slot));
     }
@@ -268,6 +268,22 @@ async function handleRequest(
     if (req.method === "POST" && pathname === "/api/shop-vote/skip") {
       const snap = await ctx.shopVote.skip();
       return json(res, 200, snap);
+    }
+
+    if (req.method === "POST" && pathname === "/api/shop-vote/banner-test") {
+      const body = await readBody(req);
+      const payload = JSON.parse(body || "{}") as { kind?: string; category?: unknown; tier?: unknown };
+      const kind =
+        payload.kind === "tier" ? 2 : payload.kind === "combined" ? 3 : payload.kind === "end" ? 4 : 1;
+      let win = 0;
+      if (kind === 4) {
+        const category = parseShopCategory(payload.category ?? "weapon");
+        const tier = parseShopTier(payload.tier ?? 2);
+        const catCode = category === "vitality" ? 2 : category === "spirit" ? 3 : 1;
+        win = catCode * 10 + (tier ?? 2);
+      }
+      const result = await ctx.shopVote.showTestBanner(kind, win);
+      return json(res, 200, result);
     }
 
     if (req.method === "GET" && pathname === "/api/shop-vote/settings") {

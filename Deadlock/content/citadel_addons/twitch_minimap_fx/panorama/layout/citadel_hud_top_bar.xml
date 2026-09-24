@@ -5,11 +5,22 @@
 		<include src="s2r://panorama/styles/hud_common.vcss_c" />
 		<include src="s2r://panorama/styles/citadel_hud_top_bar.vcss_c" />
 		<include src="s2r://panorama/styles/unit_status_icons.vcss_c" />
+		<include src="s2r://panorama/styles/citadel_hud_game_announcements.vcss_c" />
+		<include src="file://{resources}/styles/bridge_vote_announcement.css" />
 	</styles>
 	<scripts>
 		<include src="file://{resources}/scripts/twitch_bridge_events.js" />
+		<include src="file://{resources}/scripts/twitch_bridge_vote_announce.js" />
 	</scripts>
 	<CitadelHudTopBar hittest="false">
+		<Panel id="BridgeVoteAnnounceHost" class="BridgeVoteAnnounceHost" hittest="false" hittestchildren="false">
+			<Panel class="BridgeVoteAnnounce ToastVisible" hittest="false">
+				<Panel class="GenericAnnouncement" hittest="false">
+					<Label id="BridgeVoteTitle" class="AnnouncementTitle" text="" />
+					<Label id="BridgeVoteDesc" class="AnnouncementDescription" text="" />
+				</Panel>
+			</Panel>
+		</Panel>
 		<GlobalClassListener classes="gDetailView gScoreboardOpen" />
 		<Panel id="GradientBacker" />
 		<Panel class="GameClock">

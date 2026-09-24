@@ -27,6 +27,16 @@ Pattern proven by Minigames (`mg_net.js`) and this repo’s shop vote:
 4. Encode ints as levels: `dim = level * 9 + 15` (STEP=9, BASE=15). Calibrate with a known probe (600×1000); never assume scale=1.
 5. FIFO only — one `SetImage` at a time. Cache-bust with `?rnd=`.
 6. Reference: `src/shop/shop-vote-png.ts`, `twitch_bridge_shop.js`, `/api/shop-probe.png`, `/api/shop-vote-hud.png`.
+7. Shop vote images load only on `#RSVoteNetHost` inside `citadel_hud_hero_shop.xml` (`ensureVoteNetHost` in `twitch_bridge_shop.js`). That is the only host that returns a non-zero layout size.
+
+## Shop vote host — do not move it
+
+Moving `SetImage` off `#RSVoteNetHost` makes every slot time out. `applyImgSlots` never runs, so shop vote percentages and the start/end banner both go blank.
+
+- Do not load shop PNG slots on the top bar, `HudCore`, `gameplay_hud`, or a panel created with `$.CreatePanel`. Those hosts stay 0×0.
+- Do not give `twitch_bridge_vote_announce.js` its own `SetImage`. A second poller takes the only image slot and starves the shop queue.
+- Do not pass the stage through `globalThis` from the shop script to the top-bar script. They do not share a global. The shop poller writes `bridge_vote_*` attributes on `HudCore`; the banner only reads them.
+- While the shop is collapsed, `#RSVoteNetHost` also has no size. Do not “fix” that by relocating the host. Moving it onto `#Shop` shifts the shop layout and still does not decode off the random tab.
 
 ## Do not
 

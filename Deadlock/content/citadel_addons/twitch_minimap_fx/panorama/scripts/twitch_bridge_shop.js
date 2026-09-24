@@ -26,7 +26,7 @@
     var IMG_TIMEOUT_MS = 8000;
     var IMG_PROBE_ATTEMPTS = 3;
     // cmd after meta: PNG apply/skip (cfg-poll remains backup).
-    var HUD_SLOTS = ["cats", "t12", "t34", "meta", "cmd"];
+    var HUD_SLOTS = ["cats", "t12", "t34", "meta", "cmd", "banner"];
     var CMD_SEQ_MAX = 200;
 
     var CV_URL = "bridge_evt_url";
@@ -700,6 +700,28 @@
         return false;
     }
 
+    /** Always visible on the random tab. Not gated by UI_DEBUG. */
+    function hostLayoutText() {
+        var host = null;
+        try { host = ensureVoteNetHost(); } catch (eHost) {}
+        var w = 0;
+        var h = 0;
+        try {
+            if (host) {
+                w = Number(host.actuallayoutwidth) || 0;
+                h = Number(host.actuallayoutheight) || 0;
+            }
+        } catch (eDim) {}
+        return "host " + w + "x" + h;
+    }
+
+    function notePngStatus(text) {
+        try { $.Msg("[twitch_bridge] " + text); } catch (eMsg) {}
+        var root = getRoot();
+        if (!root) return;
+        setLabelText(root, "RSBridgeDebug", text);
+    }
+
     /** Always-on HUD probe — mutates labels that already exist in packed XML. */
     function paintBridgeDebug(info) {
         refreshUiDebug();
@@ -1339,6 +1361,12 @@
                 h: decodeLevel(h, state.imgScaleY, 60)
             };
         }
+        if (slotName === "banner") {
+            return {
+                w: decodeLevel(w, state.imgScaleX, CMD_SEQ_MAX),
+                h: decodeLevel(h, state.imgScaleY, 200)
+            };
+        }
         return {
             w: decodeLevel(w, state.imgScaleX, 100),
             h: decodeLevel(h, state.imgScaleY, 100)
@@ -1391,16 +1419,35 @@
         return { weapon: w, vitality: v, spirit: clampLevel(100 - w - v, 100) };
     }
 
+    function findHudCore() {
+        var panel = getRoot();
+        var root = panel;
+        var hops = 0;
+        while (panel && hops < 16) {
+            try {
+                if (typeof panel.BHasClass === "function" && panel.BHasClass("HudCore")) return panel;
+            } catch (eClass) {}
+            var parent = null;
+            try { parent = panel.GetParent ? panel.GetParent() : null; } catch (eParent) {}
+            if (!parent) break;
+            root = parent;
+            panel = parent;
+            hops += 1;
+        }
+        if (!root || typeof root.FindChildrenWithClassTraverse !== "function") return null;
+        try {
+            var found = root.FindChildrenWithClassTraverse("HudCore");
+            if (found && found.length) return found[0];
+        } catch (eFind) {}
+        return null;
+    }
+
     function ensureVoteNetHost() {
         var root = getRoot();
-        if (!root) return null;
+        if (!root || typeof root.FindChildTraverse !== "function") return null;
         var host = null;
-        try {
-            if (typeof root.FindChildTraverse === "function") {
-                host = root.FindChildTraverse("RSVoteNetHost");
-            }
-        } catch (e) {}
-        return host;
+        try { host = root.FindChildTraverse("RSVoteNetHost"); } catch (eFind) {}
+        return host || null;
     }
 
     function imgFailFast(img, onFail) {
@@ -1441,6 +1488,7 @@
         enqueueImg(function (release) {
             var host = ensureVoteNetHost();
             if (!host || typeof $.CreatePanel !== "function") {
+                notePngStatus("png no_host");
                 try {
                     onError("no_host");
                 } catch (e) {}
@@ -1654,9 +1702,65 @@
         };
     }
 
+    function publishVoteSnap(vote) {
+        if (!vote) return;
+        var hud = findHudCore();
+        var gen = 1;
+        try {
+            if (hud && typeof hud.GetAttributeInt === "function") {
+                gen = (hud.GetAttributeInt("bridge_vote_gen", 0) || 0) + 1;
+            }
+        } catch (eGen) {}
+        try {
+            if (hud && typeof hud.SetAttributeInt === "function") {
+                hud.SetAttributeInt("bridge_vote_gen", gen);
+                hud.SetAttributeString("bridge_vote_stage", String(vote.stage || ""));
+                hud.SetAttributeString("bridge_vote_ends", String(vote.stageEndsAt || 0));
+                hud.SetAttributeString("bridge_vote_winner_cat", String(vote.winnerCategory || ""));
+                hud.SetAttributeString("bridge_vote_winner_tier", String(vote.winnerTier || 0));
+            }
+        } catch (eAttr) {}
+        try {
+            if (typeof globalThis !== "undefined") {
+                globalThis.__twitch_bridge_vote_snap = {
+                    gen: gen,
+                    stage: vote.stage || "",
+                    endsAt: vote.stageEndsAt || 0,
+                    winnerCategory: vote.winnerCategory || "",
+                    winnerTier: vote.winnerTier || 0
+                };
+            }
+        } catch (eSnap) {}
+    }
+
+    function publishBannerCmd(slot) {
+        if (!slot || !(slot.w > 0)) return;
+        var kind = Math.floor(slot.h / 40);
+        var win = slot.h % 40;
+        var hud = findHudCore();
+        try {
+            if (hud && typeof hud.SetAttributeInt === "function") {
+                hud.SetAttributeInt("bridge_banner_gen", slot.w);
+                hud.SetAttributeString("bridge_banner_kind", String(kind));
+                hud.SetAttributeString("bridge_banner_win", String(win));
+            }
+        } catch (eBanner) {}
+        try {
+            $.Msg("[twitch_bridge] vote banner png seq=" + slot.w + " kind=" + kind + " win=" + win);
+        } catch (eMsg) {}
+    }
+
     function applyImgSlots(slots) {
         state.imgSlotCache = slots;
         var vote = voteCmdFromImgSlots(slots);
+        var meta = slots.meta || { w: 0, h: 0 };
+        notePngStatus(
+            "png " + (meta.rawW || 0) + "x" + (meta.rawH || 0) +
+            " stage=" + (vote.stage || "") +
+            " " + hostLayoutText()
+        );
+        publishVoteSnap(vote);
+        publishBannerCmd(slots.banner);
         paintVoteHud(vote);
         paintVoteMirror(vote, { vote: "img" });
         // Phase 3: PNG cmd slot → considerApply (cfg-poll remains backup).
@@ -1685,9 +1789,12 @@
                 getHudSlotUrl(name),
                 function (w, h) {
                     slots[name] = decodeDims(w, h, name);
+                    slots[name].rawW = w;
+                    slots[name].rawH = h;
                     next();
                 },
-                function () {
+                function (why) {
+                    if (name === "meta") notePngStatus("png " + (why || "fail") + " " + hostLayoutText());
                     try {
                         onFail("slot_" + name);
                     } catch (e2) {}

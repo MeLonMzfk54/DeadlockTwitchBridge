@@ -1,0 +1,14 @@
+<!-- Vote start/end banner. Loaded on HudCore by twitch_bridge_vote_announce.js (top bar). -->
+<root>
+	<styles>
+		<include src="s2r://panorama/styles/citadel_base_styles.vcss_c" />
+		<include src="s2r://panorama/styles/citadel_hud_game_announcements.vcss_c" />
+		<include src="file://{resources}/styles/bridge_vote_announcement.css" />
+	</styles>
+	<Panel class="BridgeVoteAnnounce ToastVisible" hittest="false" hittestchildren="false">
+		<Panel class="GenericAnnouncement" hittest="false">
+			<Label id="BridgeVoteTitle" class="AnnouncementTitle" text="{s:title_string}" />
+			<Label id="BridgeVoteDesc" class="AnnouncementDescription" text="{s:description_string}" />
+		</Panel>
+	</Panel>
+</root>

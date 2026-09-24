@@ -24,6 +24,10 @@ const INCLUDES = [
     marker: "twitch_bridge_events.js",
     line: '\t\t<include src="file://{resources}/scripts/twitch_bridge_events.js" />',
   },
+  {
+    marker: "twitch_bridge_vote_announce.js",
+    line: '\t\t<include src="file://{resources}/scripts/twitch_bridge_vote_announce.js" />',
+  },
 ];
 
 const DEFAULT_SOURCES = [

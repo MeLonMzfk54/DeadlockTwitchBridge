@@ -8,9 +8,12 @@ export const PNG_BASE = 15;
 export const PROBE_W = 600;
 export const PROBE_H = 1000;
 
-export type HudSlot = "cats" | "t12" | "t34" | "meta" | "cmd";
+export type HudSlot = "cats" | "t12" | "t34" | "meta" | "cmd" | "banner";
 
-export const HUD_SLOTS: readonly HudSlot[] = ["cats", "t12", "t34", "meta", "cmd"];
+export const HUD_SLOTS: readonly HudSlot[] = ["cats", "t12", "t34", "meta", "cmd", "banner"];
+
+/** banner.h = kind * BANNER_KIND_STRIDE + win. kind 1–4, win 0–34. */
+export const BANNER_KIND_STRIDE = 40;
 
 /** Max seq encoded in the cmd PNG slot (controller wraps 1..200). */
 export const CMD_SEQ_MAX = 200;
@@ -174,6 +177,13 @@ export function levelsForSlot(
             ? snap.lastCfg.cat * 10 + snap.lastCfg.tier
             : 0,
       };
+    case "banner":
+      // w=seq (1..200), h=kind*40+win. Independent of vote stage.
+      if (!snap.bannerSeq || snap.bannerSeq <= 0 || snap.bannerKind < 1) return { w: 0, h: 0 };
+      return {
+        w: clampLevel(snap.bannerSeq, CMD_SEQ_MAX),
+        h: clampLevel(snap.bannerKind * BANNER_KIND_STRIDE + snap.bannerWin, 200),
+      };
     default:
       return { w: 0, h: 0 };
   }
@@ -181,7 +191,14 @@ export function levelsForSlot(
 
 export function parseHudSlot(raw: string | null): HudSlot | null {
   if (!raw) return null;
-  if (raw === "cats" || raw === "t12" || raw === "t34" || raw === "meta" || raw === "cmd") {
+  if (
+    raw === "cats" ||
+    raw === "t12" ||
+    raw === "t34" ||
+    raw === "meta" ||
+    raw === "cmd" ||
+    raw === "banner"
+  ) {
     return raw;
   }
   return null;
@@ -290,6 +307,7 @@ export function getProbePng(): Buffer {
 function slotMaxLevels(slot: HudSlot): { wMax: number; hMax: number } {
   if (slot === "meta") return { wMax: 8, hMax: 60 };
   if (slot === "cmd") return { wMax: CMD_SEQ_MAX, hMax: 60 };
+  if (slot === "banner") return { wMax: CMD_SEQ_MAX, hMax: 200 };
   return { wMax: 100, hMax: 100 };
 }
 
