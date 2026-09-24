@@ -161,6 +161,12 @@ export class GameEventBus extends EventEmitter<{
     if (typeof payload.clock === "string" && payload.clock.trim()) {
       this.match.clock = payload.clock.trim();
     }
+    if (typeof payload.friendlyKills === "number" && Number.isFinite(payload.friendlyKills)) {
+      this.match.friendlyKills = payload.friendlyKills;
+    }
+    if (typeof payload.enemyKills === "number" && Number.isFinite(payload.enemyKills)) {
+      this.match.enemyKills = payload.enemyKills;
+    }
     if (typeof payload.dead === "boolean") {
       this.match.dead = payload.dead;
     }

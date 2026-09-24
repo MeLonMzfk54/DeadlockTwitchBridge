@@ -649,6 +649,45 @@ test("autoStart after purchase waits then starts a new full vote", async () => {
   ctrl.cancel();
 });
 
+test("autoStart after item skip waits then starts a new full vote", async () => {
+  const bus = new GameEventBus();
+  const ctrl = new ShopVoteController(makeFakeClient(), bus, {
+    categoryDurationMs: 60_000,
+    tierDurationMs: 60_000,
+    autoStartIntervalMinMs: 100,
+    autoStartIntervalMaxMs: 100,
+    mockBotIntervalMs: 60_000,
+  });
+
+  ctrl.setAutoStart(true);
+  await ctrl.apply("weapon", 1);
+  bus.ingest(
+    {
+      v: 1,
+      id: "rolled-skip-restart",
+      tsMs: Date.now(),
+      type: "shop_rolled",
+      payload: { name: "Extra Charge", cls: "extraCharge", tier: 1 },
+    },
+    "http",
+  );
+  assert.equal(ctrl.getSnapshot().stage, "waiting_shop");
+  bus.ingest(
+    {
+      v: 1,
+      id: "hud-skip-restart",
+      tsMs: Date.now(),
+      type: "shop_vote_skip",
+      payload: { source: "hud" },
+    },
+    "http",
+  );
+  assert.equal(ctrl.getSnapshot().stage, "idle");
+  await new Promise((r) => setTimeout(r, 150));
+  assert.equal(ctrl.getSnapshot().stage, "voting_combined");
+  ctrl.cancel();
+});
+
 test("autoStart after failed purchase waits then starts a new full vote", async () => {
   const bus = new GameEventBus();
   const ctrl = new ShopVoteController(makeFakeClient(), bus, {

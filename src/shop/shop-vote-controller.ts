@@ -584,6 +584,8 @@ export class ShopVoteController extends EventEmitter<{
     } else {
       this.emitUpdate();
     }
+    // Item skip ends the roll the same way a purchase does: keep the next vote queued.
+    this.scheduleAutoRestart();
     return this.getSnapshot();
   }
 

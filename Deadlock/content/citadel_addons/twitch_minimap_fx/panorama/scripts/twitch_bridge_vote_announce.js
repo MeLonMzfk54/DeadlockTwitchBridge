@@ -156,7 +156,101 @@
         });
     }
 
+    function stageForBannerKind(kind) {
+        if (kind === 1) return "voting_category";
+        if (kind === 2) return "voting_tier";
+        if (kind === 3) return "voting_combined";
+        return "";
+    }
+
+    function setLastVoteStage(stage) {
+        if (!stage) return;
+        try {
+            if (typeof globalThis !== "undefined") {
+                globalThis.__twitch_bridge_last_vote_stage = stage;
+            }
+        } catch (eSt) {}
+    }
+
+    function panelHasClass(panel, className) {
+        if (!valid(panel) || !className) return false;
+        try {
+            if (typeof panel.BHasClass === "function" && panel.BHasClass(className)) return true;
+        } catch (eHas) {}
+        return false;
+    }
+
+    /** Shop panel from the top bar. Same climb as findHeroShopPanel in events. */
+    function findHeroShop() {
+        var climb = contextPanel();
+        var hops = 0;
+        while (valid(climb) && hops < 12) {
+            try {
+                var parent = typeof climb.GetParent === "function" ? climb.GetParent() : null;
+                if (!valid(parent)) break;
+                climb = parent;
+            } catch (eClimb) {
+                break;
+            }
+            hops += 1;
+        }
+        var root = valid(climb) ? climb : contextPanel();
+        if (!valid(root)) return null;
+        try {
+            if (typeof root.FindChildTraverse === "function") {
+                var byId = root.FindChildTraverse("CitadelHudHeroShop");
+                if (valid(byId)) return byId;
+            }
+        } catch (eId) {}
+        var queue = [{ panel: root, depth: 0 }];
+        var seen = 0;
+        while (queue.length && seen < 400) {
+            var item = queue.shift();
+            seen += 1;
+            var panel = item.panel;
+            var depth = item.depth;
+            if (!valid(panel)) continue;
+            try {
+                if (panel.paneltype === "CitadelHudHeroShop") return panel;
+            } catch (eType) {}
+            if (panelHasClass(panel, "CitadelHudHeroShop")) return panel;
+            if (depth >= 16) continue;
+            try {
+                var n = typeof panel.GetChildCount === "function" ? panel.GetChildCount() : 0;
+                for (var i = 0; i < n; i++) {
+                    var child = panel.GetChild(i);
+                    if (valid(child)) queue.push({ panel: child, depth: depth + 1 });
+                }
+            } catch (eChild) {}
+        }
+        return null;
+    }
+
+    /**
+     * Vote start is known here while the shop is still closed.
+     * Arm gShowingRandom now so opening the shop lands on Random.
+     * One retry if the shop script has not attached ActivateRandomTab yet.
+     */
+    function armRandomTab(attempt) {
+        var shop = findHeroShop();
+        if (valid(shop) && typeof shop.ActivateRandomTab === "function") {
+            try {
+                shop.ActivateRandomTab();
+                $.Msg("[twitch_bridge] random tab armed before shop open");
+            } catch (eAct) {}
+            return;
+        }
+        if ((attempt || 0) < 1) {
+            $.Schedule(0.5, function () { armRandomTab(1); });
+        }
+    }
+
     function onBannerCmd(kind, win) {
+        var stage = stageForBannerKind(kind);
+        if (stage) {
+            setLastVoteStage(stage);
+            armRandomTab(0);
+        }
         if (kind === 1) showBanner("Голосование началось", startSubtitle("voting_category"));
         else if (kind === 2) showBanner("Голосование началось", startSubtitle("voting_tier"));
         else if (kind === 3) showBanner("Голосование началось", startSubtitle("voting_combined"));

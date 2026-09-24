@@ -30,7 +30,7 @@
         }
     } catch (eBoot) {}
 
-    var MOD_VERSION = "1.3.0";
+    var MOD_VERSION = "1.3.1";
     var LOG_PREFIX = "[twitch_bridge] EVENT ";
     var POLL_SEC = 0.25;
     var HEARTBEAT_SEC = 5.0;
@@ -102,6 +102,8 @@
         lastClockText: "",
         lastClockChangeMs: 0,
         clockLive: false,
+        friendlyKills: null,
+        enemyKills: null,
         hero: "",
         heroSource: "",
         matchEndDumped: false,
@@ -641,34 +643,92 @@
         if (rootHasClass(root, "gScoreboardOpen")) return "scoreboard";
         var alive = findPanelById(root, PANEL_IDS.aliveHud);
         var gameplay = findPanelById(root, PANEL_IDS.gameplayHud);
-        if (panelReallyVisible(alive) || panelReallyVisible(gameplay)) return "in_match";
-        // Custom matches often lack normal HUD panels — running clock is enough.
+        var hudUp = panelReallyVisible(alive) || panelReallyVisible(gameplay);
+        var matchEvidence = state.clockLive || hasNumericScore();
+        // Layout size alone is not a match: hideout keeps gameplay_hud in the tree.
+        if (hudUp && matchEvidence) return "in_match";
         if (state.clockLive) return "in_match";
+        if (isPanelValid(findPanelById(root, PANEL_IDS.hideout))) return "hideout";
         return "unknown";
+    }
+
+    function hasNumericScore() {
+        return typeof state.friendlyKills === "number" || typeof state.enemyKills === "number";
+    }
+
+    /** Dialog vars are usually set on an ancestor of the label that displays them. */
+    function readDialogString(panel, name) {
+        var p = panel;
+        var hops = 0;
+        while (isPanelValid(p) && hops < 8) {
+            try {
+                if (typeof p.GetDialogVariable === "function") {
+                    var v = p.GetDialogVariable(name);
+                    if (v !== undefined && v !== null && String(v) !== "") return String(v);
+                }
+            } catch (e) {}
+            try {
+                p = typeof p.GetParent === "function" ? p.GetParent() : null;
+            } catch (e2) {
+                break;
+            }
+            hops += 1;
+        }
+        return "";
+    }
+
+    /**
+     * Integer dialog var. Unset GetDialogVariableInt is 0 in Panorama, so 0 counts
+     * only when the string var is explicitly "0". Positive ints are accepted either way.
+     */
+    function readDialogInt(panel, name) {
+        var s = String(readDialogString(panel, name) || "").trim();
+        if (s && s.indexOf("{") === -1) {
+            var parsed = Number.parseInt(s, 10);
+            if (Number.isFinite(parsed) && String(parsed) === s) return parsed;
+        }
+        var p = panel;
+        var hops = 0;
+        while (isPanelValid(p) && hops < 8) {
+            try {
+                if (typeof p.GetDialogVariableInt === "function") {
+                    var n = p.GetDialogVariableInt(name);
+                    if (typeof n === "number" && Number.isFinite(n) && n > 0) return n;
+                }
+            } catch (e) {}
+            try {
+                p = typeof p.GetParent === "function" ? p.GetParent() : null;
+            } catch (e2) {
+                break;
+            }
+            hops += 1;
+        }
+        return null;
+    }
+
+    function clockFromText(text) {
+        var t = String(text || "").trim();
+        if (!t || t.indexOf("{") !== -1) return "";
+        if (isClockText(t)) return t;
+        var m = t.match(/(\d{1,2}:\d{2}(?:\.\d+)?)/);
+        return m ? m[1] : "";
     }
 
     function readGameClockText(root) {
         var clockPanel = findPanelById(root, PANEL_IDS.gameTime);
-        var direct = readPanelText(clockPanel);
-        if (direct && isClockText(direct)) return String(direct).trim();
-        // Bound game_clock often lives on a child Label, not panel.text.
+        var fromDialog = clockFromText(readDialogString(clockPanel, "game_clock"));
+        if (fromDialog) return fromDialog;
+        var direct = clockFromText(readPanelText(clockPanel));
+        if (direct) return direct;
         if (isPanelValid(clockPanel)) {
             var texts = [];
             collectLabelTexts(clockPanel, 0, texts);
             for (var i = 0; i < texts.length; i++) {
-                var t = String(texts[i] || "").trim();
-                if (isClockText(t)) return t;
-                var m = t.match(/(\d{1,2}:\d{2}(?:\.\d+)?)/);
-                if (m) return m[1];
+                var hit = clockFromText(texts[i]);
+                if (hit) return hit;
             }
         }
-        var byClass = readLabelByClass(root, "GameTime");
-        if (byClass && isClockText(byClass)) return String(byClass).trim();
-        if (byClass) {
-            var m2 = String(byClass).trim().match(/(\d{1,2}:\d{2}(?:\.\d+)?)/);
-            if (m2) return m2[1];
-        }
-        return direct ? String(direct).trim() : "";
+        return clockFromText(readLabelByClass(root, "GameTime"));
     }
 
     /** True if text looks like a match clock (e.g. 0:12, 12:05). */
@@ -1032,14 +1092,18 @@
         return found;
     }
 
+    function readTeamKills(root) {
+        var top = findPanelById(root, PANEL_IDS.topBar);
+        var search = isPanelValid(top) ? top : root;
+        state.friendlyKills = readDialogInt(findPanelByClass(search, "FriendlyKills", 8), "friendly_kills");
+        state.enemyKills = readDialogInt(findPanelByClass(search, "EnemyKills", 8), "enemy_kills");
+    }
+
     function pollScore(root) {
         var clock = updateClockLive(root);
-        var friendly = readLabelByClass(root, "FriendlyKills");
-        var enemy = readLabelByClass(root, "EnemyKills");
-        var fk = friendly !== "" ? Number.parseInt(friendly, 10) : null;
-        var ek = enemy !== "" ? Number.parseInt(enemy, 10) : null;
-        if (fk !== null && !Number.isFinite(fk)) fk = null;
-        if (ek !== null && !Number.isFinite(ek)) ek = null;
+        readTeamKills(root);
+        var fk = state.friendlyKills;
+        var ek = state.enemyKills;
 
         var sig = clock + "|" + (fk === null ? "" : fk) + "|" + (ek === null ? "" : ek);
         if (sig === "||") return;
@@ -1233,8 +1297,9 @@
 
         maybeProbeAndSubscribe();
 
-        // Update clock before phase so PausedInfo can be demoted when time is running.
+        // Update clock and kills before phase so hideout is not read as in_match.
         updateClockLive(root);
+        readTeamKills(root);
 
         var phase = detectPhase(root);
         if (phase !== state.phase) {
@@ -1296,9 +1361,10 @@
                         dataFeed: state.panelsFound.dataFeed,
                         announcements: state.panelsFound.announcements,
                         gameEvents: state.panelsFound.gameEvents
-                    }
-                },
-                { skipLog: true }
+                    },
+                    friendlyKills: state.friendlyKills,
+                    enemyKills: state.enemyKills
+                }
             );
         }
 
