@@ -270,6 +270,10 @@ export class ShopVoteController extends EventEmitter<{
   private lastBannerSeq = 0;
   private lastBannerKind = 0;
   private lastBannerWin = 0;
+  /** True after a start banner until the matching end banner. */
+  private bannerCycleOpen = false;
+  /** Stage/end captured at start(), so a same-stage restart can refire the banner. */
+  private bannerRestart: { stage: ShopVoteStage; endsAt: number | null } | null = null;
   private lastCfg: { seq: number; cat: number; tier: number } | null = null;
   private cmdReceived = false;
   private lastRolled: Record<string, unknown> | null = null;
@@ -515,6 +519,7 @@ export class ShopVoteController extends EventEmitter<{
   }
 
   async start(mode: ShopStartMode = "full"): Promise<ShopVoteSnapshot> {
+    this.bannerRestart = { stage: this.stage, endsAt: this.stageEndsAt };
     this.clearTimers();
     this.runMode = mode;
     this.clearUserVotes();
@@ -544,6 +549,8 @@ export class ShopVoteController extends EventEmitter<{
   }
 
   cancel(): ShopVoteSnapshot {
+    if (isShopVotingStage(this.stage)) this.closeVoteBanner();
+    this.bannerRestart = null;
     this.clearTimers();
     this.runMode = null;
     this.clearUserVotes();
@@ -562,6 +569,8 @@ export class ShopVoteController extends EventEmitter<{
   async skip(): Promise<ShopVoteSnapshot> {
     const shouldSignal =
       ROLL_PIPELINE_STAGES.has(this.stage) || Boolean(this.lastCfg && this.lastCfg.cat > 0);
+    if (isShopVotingStage(this.stage)) this.closeVoteBanner();
+    this.bannerRestart = null;
     this.clearTimers();
     this.runMode = null;
     this.clearUserVotes();
@@ -732,6 +741,7 @@ export class ShopVoteController extends EventEmitter<{
     }
 
     if (cats.length <= 1 && tiers.length <= 1) {
+      this.bannerRestart = null;
       void this.scheduleApply(this.winnerCategory!, this.winnerTier!);
       return;
     }
@@ -749,6 +759,7 @@ export class ShopVoteController extends EventEmitter<{
     this.setStage("voting_combined");
     this.stageStartedAt = Date.now();
     this.stageEndsAt = Date.now() + this.categoryDurationMs;
+    this.announceVoteStart(3);
     this.push("voting combined (category + tier)");
     this.startMockBot();
     this.stageTimer = setTimeout(() => {
@@ -772,6 +783,7 @@ export class ShopVoteController extends EventEmitter<{
       this.winnerCategory = cats[0] ?? "weapon";
       this.push(`skip category vote (only ${this.winnerCategory})`);
       if (this.runMode === "category") {
+        this.bannerRestart = null;
         this.setStage("idle");
         this.stageEndsAt = null;
         this.emitUpdate();
@@ -789,6 +801,7 @@ export class ShopVoteController extends EventEmitter<{
     this.setStage("voting_category");
     this.stageStartedAt = Date.now();
     this.stageEndsAt = Date.now() + this.categoryDurationMs;
+    this.announceVoteStart(1);
     this.push("voting category");
     this.startMockBot();
     this.stageTimer = setTimeout(() => {
@@ -814,6 +827,7 @@ export class ShopVoteController extends EventEmitter<{
         this.winnerCategory = this.enabledCategories()[0] ?? "weapon";
       }
       if (this.runMode === "category") {
+        this.bannerRestart = null;
         this.setStage("idle");
         this.stageEndsAt = null;
         this.emitUpdate();
@@ -826,6 +840,7 @@ export class ShopVoteController extends EventEmitter<{
     this.setStage("voting_tier");
     this.stageStartedAt = Date.now();
     this.stageEndsAt = Date.now() + this.tierDurationMs;
+    this.announceVoteStart(2);
     this.push(`voting tier (cat=${this.winnerCategory})`);
     this.startMockBot();
     this.stageTimer = setTimeout(() => {
@@ -844,6 +859,7 @@ export class ShopVoteController extends EventEmitter<{
     this.winnerCategory = pickWeightedWinner(this.categoryTally, cats);
     this.push(`winner category=${this.winnerCategory}`);
     if (this.runMode === "category") {
+      this.closeVoteBanner();
       this.setStage("idle");
       this.stageEndsAt = null;
       this.emitUpdate();
@@ -851,6 +867,7 @@ export class ShopVoteController extends EventEmitter<{
     }
     // full with pre-locked single tier (from beginCombinedVote skip path)
     if (this.runMode === "full" && this.winnerTier != null && this.enabledTiers().length <= 1) {
+      this.closeVoteBanner();
       await this.scheduleApply(this.winnerCategory, this.winnerTier);
       return;
     }
@@ -867,6 +884,7 @@ export class ShopVoteController extends EventEmitter<{
     if (!this.winnerCategory) {
       this.winnerCategory = this.enabledCategories()[0] ?? "weapon";
     }
+    this.closeVoteBanner();
     await this.scheduleApply(this.winnerCategory, this.winnerTier);
   }
 
@@ -884,6 +902,7 @@ export class ShopVoteController extends EventEmitter<{
       this.winnerTier = Number(tierKey) as ShopTier;
     }
     this.push(`winner tier=${this.winnerTier}`);
+    this.closeVoteBanner();
     await this.scheduleApply(this.winnerCategory!, this.winnerTier!);
   }
 
@@ -937,10 +956,17 @@ export class ShopVoteController extends EventEmitter<{
   }
 
   /**
-   * One-shot HUD banner via the shop PNG `banner` slot (same image queue).
+   * One-shot HUD banner on the PNG `banner` slot. The top bar decodes that image.
    * kind: 1 category, 2 tier, 3 combined, 4 end. win is cat*10+tier (0 = none).
    */
   async showTestBanner(kind: 1 | 2 | 3 | 4, win = 0): Promise<{ seq: number; kind: number; win: number }> {
+    const safeWin = win >= 0 && win <= 34 ? win : 0;
+    const seq = this.publishBanner(kind, safeWin);
+    return { seq, kind, win: safeWin };
+  }
+
+  /** kind: 1 category, 2 tier, 3 combined, 4 end. win is cat*10+tier. */
+  private publishBanner(kind: 1 | 2 | 3 | 4, win = 0): number {
     const seq = this.lastBannerSeq >= SHOP_CMD_SEQ_MAX ? 1 : this.lastBannerSeq + 1;
     const safeWin = win >= 0 && win <= 34 ? win : 0;
     this.lastBannerSeq = seq;
@@ -948,7 +974,37 @@ export class ShopVoteController extends EventEmitter<{
     this.lastBannerWin = safeWin;
     this.push(`banner png seq=${seq} kind=${kind} win=${safeWin}`);
     this.emitUpdate();
-    return { seq, kind, win: safeWin };
+    return seq;
+  }
+
+  /**
+   * Start toast. Suppressed when category hands off to tier in the same cycle.
+   * A same-stage restart refires only if stageEndsAt moved more than 4s later.
+   */
+  private announceVoteStart(kind: 1 | 2 | 3): void {
+    const pending = this.bannerRestart;
+    this.bannerRestart = null;
+    if (this.bannerCycleOpen) {
+      const grew =
+        pending != null &&
+        pending.stage === this.stage &&
+        pending.endsAt != null &&
+        this.stageEndsAt != null &&
+        this.stageEndsAt > pending.endsAt + 4000;
+      const switched = pending != null && pending.stage !== this.stage;
+      if (!grew && !switched) return;
+    }
+    this.bannerCycleOpen = true;
+    this.publishBanner(kind, 0);
+  }
+
+  private closeVoteBanner(): void {
+    if (!this.bannerCycleOpen) return;
+    this.bannerCycleOpen = false;
+    const cat = this.winnerCategory ? CATEGORY_TO_CV[this.winnerCategory] : 0;
+    const tier = this.winnerTier ?? 0;
+    const win = cat >= 1 && tier >= 1 && tier <= 4 ? cat * 10 + tier : 0;
+    this.publishBanner(4, win);
   }
 
   private async sendCfg(category: ShopCategory, tier: ShopTier): Promise<void> {

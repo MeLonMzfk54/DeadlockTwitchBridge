@@ -25,8 +25,8 @@
     var IMG_DIM_POLL = 0.05;
     var IMG_TIMEOUT_MS = 8000;
     var IMG_PROBE_ATTEMPTS = 3;
-    // cmd after meta: PNG apply/skip (cfg-poll remains backup).
-    var HUD_SLOTS = ["cats", "t12", "t34", "meta", "cmd", "banner"];
+    // cmd after meta: PNG apply/skip (cfg-poll remains backup). Banner is a separate poller.
+    var HUD_SLOTS = ["cats", "t12", "t34", "meta", "cmd"];
     var CMD_SEQ_MAX = 200;
 
     var CV_URL = "bridge_evt_url";
@@ -700,7 +700,6 @@
         return false;
     }
 
-    /** Always visible on the random tab. Not gated by UI_DEBUG. */
     function hostLayoutText() {
         var host = null;
         try { host = ensureVoteNetHost(); } catch (eHost) {}
@@ -717,9 +716,6 @@
 
     function notePngStatus(text) {
         try { $.Msg("[twitch_bridge] " + text); } catch (eMsg) {}
-        var root = getRoot();
-        if (!root) return;
-        setLabelText(root, "RSBridgeDebug", text);
     }
 
     /** Always-on HUD probe — mutates labels that already exist in packed XML. */
@@ -1361,12 +1357,6 @@
                 h: decodeLevel(h, state.imgScaleY, 60)
             };
         }
-        if (slotName === "banner") {
-            return {
-                w: decodeLevel(w, state.imgScaleX, CMD_SEQ_MAX),
-                h: decodeLevel(h, state.imgScaleY, 200)
-            };
-        }
         return {
             w: decodeLevel(w, state.imgScaleX, 100),
             h: decodeLevel(h, state.imgScaleY, 100)
@@ -1733,23 +1723,6 @@
         } catch (eSnap) {}
     }
 
-    function publishBannerCmd(slot) {
-        if (!slot || !(slot.w > 0)) return;
-        var kind = Math.floor(slot.h / 40);
-        var win = slot.h % 40;
-        var hud = findHudCore();
-        try {
-            if (hud && typeof hud.SetAttributeInt === "function") {
-                hud.SetAttributeInt("bridge_banner_gen", slot.w);
-                hud.SetAttributeString("bridge_banner_kind", String(kind));
-                hud.SetAttributeString("bridge_banner_win", String(win));
-            }
-        } catch (eBanner) {}
-        try {
-            $.Msg("[twitch_bridge] vote banner png seq=" + slot.w + " kind=" + kind + " win=" + win);
-        } catch (eMsg) {}
-    }
-
     function applyImgSlots(slots) {
         state.imgSlotCache = slots;
         var vote = voteCmdFromImgSlots(slots);
@@ -1760,7 +1733,6 @@
             " " + hostLayoutText()
         );
         publishVoteSnap(vote);
-        publishBannerCmd(slots.banner);
         paintVoteHud(vote);
         paintVoteMirror(vote, { vote: "img" });
         // Phase 3: PNG cmd slot → considerApply (cfg-poll remains backup).

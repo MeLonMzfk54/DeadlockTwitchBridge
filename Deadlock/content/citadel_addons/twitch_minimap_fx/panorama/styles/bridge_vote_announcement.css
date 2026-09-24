@@ -40,11 +40,22 @@
 	visibility: visible;
 }
 
-.BridgeVoteAnnounce.Hidden,
 .BridgeVoteAnnounceHost.Hidden
 {
 	opacity: 0;
 	visibility: collapse;
+}
+
+#BridgeVoteNetHost
+{
+	width: 640px;
+	height: 1020px;
+	opacity: 0.0;
+	position: absolute;
+	x: -2000px;
+	y: -2000px;
+	overflow: noclip;
+	hittest: false;
 }
 
 .BridgeVoteAnnounceHost Label.AnnouncementTitle

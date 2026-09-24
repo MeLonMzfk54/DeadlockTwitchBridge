@@ -13,7 +13,7 @@
 		<include src="file://{resources}/scripts/twitch_bridge_vote_announce.js" />
 	</scripts>
 	<CitadelHudTopBar hittest="false">
-		<Panel id="BridgeVoteAnnounceHost" class="BridgeVoteAnnounceHost" hittest="false" hittestchildren="false">
+		<Panel id="BridgeVoteAnnounceHost" class="BridgeVoteAnnounceHost Hidden" hittest="false" hittestchildren="false">
 			<Panel class="BridgeVoteAnnounce ToastVisible" hittest="false">
 				<Panel class="GenericAnnouncement" hittest="false">
 					<Label id="BridgeVoteTitle" class="AnnouncementTitle" text="" />
@@ -21,6 +21,7 @@
 				</Panel>
 			</Panel>
 		</Panel>
+		<Panel id="BridgeVoteNetHost" hittest="false" />
 		<GlobalClassListener classes="gDetailView gScoreboardOpen" />
 		<Panel id="GradientBacker" />
 		<Panel class="GameClock">

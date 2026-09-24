@@ -36,6 +36,32 @@ test("tallyPercents: largest remainder sums to 100", () => {
   assert.ok(Object.values(pct).every((n) => n === 33 || n === 34));
 });
 
+test("vote start writes banner png; immediate restart does not", async () => {
+  const bus = new GameEventBus();
+  const ctrl = new ShopVoteController(makeFakeClient(), bus, {
+    categoryDurationMs: 60_000,
+    tierDurationMs: 60_000,
+    mockBotIntervalMs: 60_000,
+  });
+  await ctrl.start("category");
+  const started = ctrl.getSnapshot();
+  assert.equal(started.stage, "voting_category");
+  assert.equal(started.bannerSeq, 1);
+  assert.equal(started.bannerKind, 1);
+  assert.equal(started.bannerWin, 0);
+
+  await ctrl.start("category");
+  const restartedSoon = ctrl.getSnapshot();
+  assert.equal(restartedSoon.bannerSeq, 1);
+  assert.equal(restartedSoon.bannerKind, 1);
+
+  ctrl.cancel();
+  const ended = ctrl.getSnapshot();
+  assert.equal(ended.stage, "idle");
+  assert.equal(ended.bannerKind, 4);
+  assert.equal(ended.bannerSeq, 2);
+});
+
 test("banner test png does not change shop stage or apply seq", async () => {
   const sent: string[][] = [];
   const bus = new GameEventBus();

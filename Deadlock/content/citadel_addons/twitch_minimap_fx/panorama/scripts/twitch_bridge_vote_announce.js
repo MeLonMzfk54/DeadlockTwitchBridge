@@ -1,5 +1,5 @@
 // Vote start/end banner. Loaded from citadel_hud_top_bar.xml.
-// Trigger is the shop PNG `banner` slot, written onto HudCore. No SetImage here.
+// One SetImage of slot=banner on #BridgeVoteNetHost. No convars, no HudCore, no reparent.
 (function () {
     "use strict";
 
@@ -11,18 +11,35 @@
     } catch (eBoot) {}
 
     var HOLD_SEC = 6;
-    var POLL_SEC = 0.3;
+    var POLL_SEC = 1.0;
+    var HOST_RETRY_SEC = 0.5;
+    var PNG_STEP = 9;
+    var PNG_BASE = 15;
+    var PROBE_W = 600;
+    var PROBE_H = 1000;
+    var CMD_SEQ_MAX = 200;
+    var BANNER_H_MAX = 200;
+    var IMG_DIM_POLL = 0.05;
+    var IMG_TIMEOUT_MS = 8000;
+    var IMG_PROBE_ATTEMPTS = 3;
+    var BRIDGE = "http://127.0.0.1:3920";
     /** Test: pin the banner on boot and leave it up. Turn off after the HUD check. */
     var TEST_PIN = false;
 
     var state = {
         bannerGen: 0,
-        lastSeq: 0
+        lastSeq: 0,
+        imgScaleX: 1,
+        imgScaleY: 1,
+        imgSwap: false,
+        imgCalibrated: false,
+        imgCalibrating: false,
+        imgReq: 0
     };
 
     function startSubtitle(stage) {
         if (stage === "voting_category") return "Категория";
-        if (stage === "voting_tier") return "Тир";с 
+        if (stage === "voting_tier") return "Тир";
         if (stage === "voting_combined") return "Категория и тир";
         return "";
     }
@@ -54,79 +71,31 @@
             : null;
     }
 
-    function findHost() {
+    function findNamed(id) {
         var ctx = contextPanel();
-        var roots = [ctx];
+        if (!valid(ctx) || typeof ctx.FindChildTraverse !== "function") return null;
         try {
-            if (valid(ctx) && typeof ctx.GetParent === "function") roots.push(ctx.GetParent());
-        } catch (eParent) {}
-        for (var i = 0; i < roots.length; i++) {
-            var root = roots[i];
-            if (!valid(root) || typeof root.FindChildTraverse !== "function") continue;
-            try {
-                var host = root.FindChildTraverse("BridgeVoteAnnounceHost");
-                if (valid(host)) return host;
-            } catch (eFind) {}
-        }
+            var host = ctx.FindChildTraverse(id);
+            if (valid(host)) return host;
+        } catch (eFind) {}
         return null;
     }
 
-    function placeOnHud(host) {
-        var ctx = contextPanel();
-        var hud = null;
-        try {
-            hud = valid(ctx) && typeof ctx.GetParent === "function" ? ctx.GetParent() : null;
-        } catch (eHud) {}
-        if (!valid(hud)) return;
-        try {
-            if (typeof host.GetParent === "function" && host.GetParent() !== hud && typeof host.SetParent === "function") {
-                host.SetParent(hud);
-            }
-        } catch (eMove) {}
-        try { hud.style.overflow = "noclip"; } catch (eOv) {}
-        try {
-            host.style.width = "fit-children";
-            host.style.height = "fit-children";
-            host.style.horizontalAlign = "center";
-            host.style.verticalAlign = "top";
-            host.style.marginTop = "48px";
-            host.style.zIndex = "1000";
-            host.style.overflow = "noclip";
-            host.style.backgroundColor = "#102018f2";
-        } catch (eStyle) {}
+    function findHost() {
+        return findNamed("BridgeVoteAnnounceHost");
     }
 
-    function logLayout(host, why) {
-        $.Schedule(0.2, function () {
-            if (!valid(host)) return;
-            var w = 0;
-            var h = 0;
-            var parentId = "";
-            try { w = Number(host.actuallayoutwidth) || 0; } catch (eW) {}
-            try { h = Number(host.actuallayoutheight) || 0; } catch (eH) {}
-            try {
-                var parent = host.GetParent();
-                parentId = parent && parent.id ? String(parent.id) : "";
-            } catch (eP) {}
-            try {
-                $.Msg("[twitch_bridge] vote announce layout " + why + " " + w + "x" + h + " parent=" + parentId);
-            } catch (eMsg) {}
-            if (w > 0 && h > 0) return;
-            var hud = null;
-            try {
-                var ctx = contextPanel();
-                var top = valid(ctx) && typeof ctx.GetParent === "function" ? ctx.GetParent() : null;
-                if (valid(top) && typeof top.FindChildTraverse === "function") {
-                    hud = top.FindChildTraverse("gameplay_hud");
-                }
-            } catch (eHud) {}
-            if (!valid(hud) || typeof host.SetParent !== "function") return;
-            try { host.SetParent(hud); } catch (eMove) {}
-            try { hud.style.overflow = "noclip"; } catch (eOv) {}
-            try {
-                $.Msg("[twitch_bridge] vote announce moved to gameplay_hud");
-            } catch (eMoveMsg) {}
-        });
+    function findNetHost() {
+        return findNamed("BridgeVoteNetHost");
+    }
+
+    function panelSize(panel) {
+        var w = 0;
+        var h = 0;
+        if (!valid(panel)) return { w: 0, h: 0 };
+        try { w = Number(panel.actuallayoutwidth) || 0; } catch (eW) {}
+        try { h = Number(panel.actuallayoutheight) || 0; } catch (eH) {}
+        return { w: w, h: h };
     }
 
     function setBannerHidden(host, hidden) {
@@ -150,7 +119,6 @@
             try { $.Msg("[twitch_bridge] vote announce missing host"); } catch (eMiss) {}
             return false;
         }
-        placeOnHud(host);
         try {
             var titleLabel = host.FindChildTraverse("BridgeVoteTitle");
             var descLabel = host.FindChildTraverse("BridgeVoteDesc");
@@ -161,7 +129,6 @@
         try {
             $.Msg("[twitch_bridge] vote announce: " + title + (description ? " / " + description : ""));
         } catch (eMsg) {}
-        logLayout(host, "show");
         state.bannerGen += 1;
         var gen = state.bannerGen;
         if (TEST_PIN) return true;
@@ -173,40 +140,8 @@
         return true;
     }
 
-    function findHudCore() {
-        var panel = contextPanel();
-        var root = panel;
-        var hops = 0;
-        while (panel && hops < 16) {
-            try {
-                if (typeof panel.BHasClass === "function" && panel.BHasClass("HudCore")) return panel;
-            } catch (eClass) {}
-            var parent = null;
-            try { parent = panel.GetParent ? panel.GetParent() : null; } catch (eParent) {}
-            if (!parent) break;
-            root = parent;
-            panel = parent;
-            hops += 1;
-        }
-        if (!valid(root) || typeof root.FindChildrenWithClassTraverse !== "function") return null;
-        try {
-            var found = root.FindChildrenWithClassTraverse("HudCore");
-            if (found && found.length) return found[0];
-        } catch (eFind) {}
-        return null;
-    }
-
-    function readBanner() {
-        var hud = findHudCore();
-        if (!valid(hud) || typeof hud.GetAttributeInt !== "function") return null;
-        var seq = 0;
-        try { seq = hud.GetAttributeInt("bridge_banner_gen", 0) || 0; } catch (eSeq) { return null; }
-        if (!seq) return null;
-        var kind = 0;
-        var win = 0;
-        try { kind = Number(hud.GetAttributeString("bridge_banner_kind", "0")) || 0; } catch (eKind) {}
-        try { win = Number(hud.GetAttributeString("bridge_banner_win", "0")) || 0; } catch (eWin) {}
-        return { seq: seq, kind: kind, win: win };
+    function paintPngDebug(text) {
+        try { $.Msg("[twitch_bridge] " + (text || "")); } catch (eText) {}
     }
 
     function winnerFromCode(code) {
@@ -228,32 +163,235 @@
         else if (kind === 4) showBanner("Голосование закончилось", winnerFromCode(win));
     }
 
-    function pollBanner() {
-        var cmd = readBanner();
-        if (cmd && cmd.seq && cmd.seq !== state.lastSeq) {
-            state.lastSeq = cmd.seq;
-            onBannerCmd(cmd.kind, cmd.win);
+    function clampLevel(level, max) {
+        var n = Number(level);
+        if (!Number.isFinite(n) || n < 0) return 0;
+        if (n > max) return max;
+        return Math.round(n);
+    }
+
+    function decodeLevel(dim, scale, max) {
+        if (!Number.isFinite(dim) || !Number.isFinite(scale) || scale <= 0) return 0;
+        return clampLevel((dim / scale - PNG_BASE) / PNG_STEP, max);
+    }
+
+    function decodeBanner(rawW, rawH) {
+        var w = Number(rawW);
+        var h = Number(rawH);
+        if (state.imgSwap) {
+            var t = w;
+            w = h;
+            h = t;
         }
-        $.Schedule(POLL_SEC, pollBanner);
+        return {
+            w: decodeLevel(w, state.imgScaleX, CMD_SEQ_MAX),
+            h: decodeLevel(h, state.imgScaleY, BANNER_H_MAX)
+        };
+    }
+
+    function cacheUrl(path) {
+        state.imgReq += 1;
+        return BRIDGE + path + (path.indexOf("?") === -1 ? "?" : "&") +
+            "rnd=" + Math.random() + "x" + state.imgReq;
+    }
+
+    function schedulePoll(sec) {
+        $.Schedule(sec, pollBanner);
+    }
+
+    function rawImgRequest(url, onDone, onError) {
+        var host = findNetHost();
+        if (!valid(host) || typeof $.CreatePanel !== "function") {
+            try { onError("no_host"); } catch (eNo) {}
+            return;
+        }
+        var img = null;
+        var finished = false;
+        var elapsed = 0;
+        function cleanup() {
+            try {
+                if (img) img.SetImage("");
+            } catch (e1) {}
+            try {
+                if (img && typeof img.DeleteAsync === "function") img.DeleteAsync(0);
+            } catch (e2) {}
+        }
+        function finishOk(w, h) {
+            if (finished) return;
+            finished = true;
+            cleanup();
+            try { onDone(w, h); } catch (e3) {}
+        }
+        function finishErr(why) {
+            if (finished) return;
+            finished = true;
+            cleanup();
+            try { onError(why || "fail"); } catch (e4) {}
+        }
+        try {
+            state.imgReq += 1;
+            img = $.CreatePanel("Image", host, "bridge_banner_img_" + state.imgReq);
+            img.style.position = "0px 0px 0px";
+            img.SetImage(url);
+        } catch (eCreate) {
+            finishErr("exception");
+            return;
+        }
+        try {
+            if (typeof img.SetPanelEvent === "function") {
+                img.SetPanelEvent("ImageFailedLoad", function () {
+                    finishErr("failed");
+                });
+            }
+        } catch (eFailEvt) {}
+        function check() {
+            if (finished) return;
+            var w = 0;
+            var hh = 0;
+            try {
+                w = Number(img.actuallayoutwidth);
+                hh = Number(img.actuallayoutheight);
+            } catch (eDim) {}
+            if (w > 0 && hh > 0) {
+                finishOk(w, hh);
+                return;
+            }
+            elapsed += IMG_DIM_POLL * 1000;
+            if (elapsed >= IMG_TIMEOUT_MS) {
+                finishErr("timeout");
+                return;
+            }
+            $.Schedule(IMG_DIM_POLL, check);
+        }
+        $.Schedule(IMG_DIM_POLL, check);
+    }
+
+    function paintLoadFail(why) {
+        var hs = panelSize(findNetHost());
+        if (why === "host0" || hs.w <= 0 || hs.h <= 0) {
+            paintPngDebug("banner host 0x0");
+            return;
+        }
+        paintPngDebug("banner timeout");
+    }
+
+    function calibrateImg(onOk, onFail) {
+        if (state.imgCalibrated) {
+            try { onOk(); } catch (eOk0) {}
+            return;
+        }
+        if (state.imgCalibrating) return;
+        state.imgCalibrating = true;
+
+        function attempt(n) {
+            rawImgRequest(
+                cacheUrl("/api/shop-probe.png"),
+                function (w, hh) {
+                    var sw = false;
+                    var rw = w;
+                    var rh = hh;
+                    if (rw > rh) {
+                        sw = true;
+                        var tmp = rw;
+                        rw = rh;
+                        rh = tmp;
+                    }
+                    var sx = rw / PROBE_W;
+                    var sy = rh / PROBE_H;
+                    if (!(sx > 0) || !(sy > 0)) {
+                        retryOrFail(n);
+                        return;
+                    }
+                    var ratio = Math.abs(sx - sy) / Math.max(sx, sy);
+                    if (ratio > 0.2) {
+                        retryOrFail(n);
+                        return;
+                    }
+                    state.imgSwap = sw;
+                    state.imgScaleX = sx;
+                    state.imgScaleY = sy;
+                    state.imgCalibrated = true;
+                    state.imgCalibrating = false;
+                    try { onOk(); } catch (eOk) {}
+                },
+                function () {
+                    retryOrFail(n);
+                }
+            );
+        }
+
+        function retryOrFail(n) {
+            if (n < IMG_PROBE_ATTEMPTS) {
+                attempt(n + 1);
+                return;
+            }
+            state.imgCalibrating = false;
+            try { onFail(); } catch (eFail) {}
+        }
+
+        attempt(1);
+    }
+
+    function applyBannerFrame(rawW, rawH) {
+        var decoded = decodeBanner(rawW, rawH);
+        var kind = Math.floor((Number(decoded.h) || 0) / 40);
+        var win = (Number(decoded.h) || 0) % 40;
+        var hs = panelSize(findNetHost());
+        paintPngDebug(
+            "banner " + rawW + "x" + rawH +
+            " seq=" + decoded.w +
+            " kind=" + kind +
+            " win=" + win +
+            " host " + hs.w + "x" + hs.h
+        );
+        if (decoded.w > 0 && decoded.w !== state.lastSeq && kind >= 1 && kind <= 4) {
+            state.lastSeq = decoded.w;
+            onBannerCmd(kind, win);
+        }
+    }
+
+    function pollBanner() {
+        var host = findNetHost();
+        var hs = panelSize(host);
+        if (!valid(host) || hs.w <= 0 || hs.h <= 0) {
+            paintPngDebug("banner host 0x0");
+            schedulePoll(HOST_RETRY_SEC);
+            return;
+        }
+        if (!state.imgCalibrated) {
+            calibrateImg(
+                function () { schedulePoll(0.05); },
+                function () {
+                    paintLoadFail("timeout");
+                    schedulePoll(POLL_SEC);
+                }
+            );
+            return;
+        }
+        rawImgRequest(
+            cacheUrl("/api/shop-vote-hud.png?slot=banner"),
+            function (w, h) {
+                applyBannerFrame(w, h);
+                schedulePoll(POLL_SEC);
+            },
+            function (why) {
+                paintLoadFail(why);
+                schedulePoll(POLL_SEC);
+            }
+        );
     }
 
     function boot() {
-        var ctx = (typeof $ !== "undefined" && typeof $.GetContextPanel === "function")
-            ? $.GetContextPanel()
-            : null;
+        var ctx = contextPanel();
         if (!valid(ctx)) {
             $.Schedule(0.5, boot);
             return;
         }
         var host = findHost();
         if (valid(host)) setBannerHidden(host, true);
-        if (TEST_PIN) {
-            if (!showBanner("Голосование началось", "тест баннера")) $.Schedule(0.5, boot);
-            return;
-        }
-        var cmd = readBanner();
-        state.lastSeq = cmd && cmd.seq ? cmd.seq : 0;
-        $.Schedule(0.4, pollBanner);
+        paintPngDebug("banner png: waiting");
+        if (TEST_PIN) showBanner("Голосование началось", "тест баннера");
+        schedulePoll(0.4);
     }
 
     boot();

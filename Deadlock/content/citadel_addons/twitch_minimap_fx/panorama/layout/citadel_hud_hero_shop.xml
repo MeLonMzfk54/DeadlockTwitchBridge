@@ -80,7 +80,6 @@
 						<Panel id="RandomShopContent">
 							<Label class="RSTitle" text="RANDOM SHOP" />
 							<Label class="RSSubtitle" text="Choose a tier to get a random item" />
-							<Label id="RSBridgeDebug" class="RSBridgeDebug" text="bridge: waiting…" />
 							<Panel id="RSVoteStartBtn" class="RSVoteStartBtn" onmouseactivate="$.GetContextPanel().TwitchBridgeVoteButton();">
 								<Label id="RSVoteStartLabel" class="RSVoteStartLabel" text="START VOTE" />
 							</Panel>
@@ -160,13 +159,6 @@
 										</Panel>
 									</Panel>
 								</Panel>
-							</Panel>
-							<Panel id="RSVoteMirror">
-								<Label id="RSVoteMirrorHttp" class="RSVoteMirrorLine" text="v? · http_? · vote=img_wait · cmd=cfg" />
-								<Label id="RSVoteMirrorStage" class="RSVoteMirrorLine" text="stage=— · shop=— · timer=— · seq —" />
-								<Label id="RSVoteMirrorCats" class="RSVoteMirrorLine" text="W 0 (0%) · V 0 (0%) · S 0 (0%)" />
-								<Label id="RSVoteMirrorTiers" class="RSVoteMirrorLine" text="T1 0 (0%) · T2 0 (0%) · T3 0 (0%) · T4 0 (0%)" />
-								<Label id="RSVoteMirrorResult" class="RSVoteMirrorLine RSVoteMirrorResult" text="Нет ролла / покупки" />
 							</Panel>
 							<!-- Image side-channel host: children created in JS without width/height so intrinsic PNG size is readable. -->
 							<Panel id="RSVoteNetHost" hittest="false" />
