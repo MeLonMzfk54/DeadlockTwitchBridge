@@ -30,9 +30,11 @@
         }
     } catch (eBoot) {}
 
-    var MOD_VERSION = "1.3.1";
+    var MOD_VERSION = "1.3.2";
     var LOG_PREFIX = "[twitch_bridge] EVENT ";
     var POLL_SEC = 0.25;
+    /** Hideout leaves only after entry UI or both team portraits hold this many polls (~1s). */
+    var MATCH_LEAVE_POLLS = 4;
     var HEARTBEAT_SEC = 5.0;
     var DUMP_COOLDOWN_SEC = 10.0;
     var PROBE_RETRY_SEC = 3.0;
@@ -93,6 +95,12 @@
         lastDumpMs: 0,
         lastProbeMs: 0,
         phase: "",
+        // "" until CitadelHudHideout is seen, then "hideout" until match entry, then "match".
+        place: "",
+        entryHold: 0,
+        portraitHold: 0,
+        friendlyHeroes: 0,
+        enemyHeroes: 0,
         dead: false,
         respawnSec: null,
         feedSignature: "",
@@ -626,17 +634,66 @@
         };
     }
 
-    function detectPhase(root) {
-        if (panelVisible(findPanelById(root, PANEL_IDS.hideout))) return "hideout";
+    /** Pregame / countdown / match start. Boot shows these before the first hideout sighting. */
+    function matchEntryPhase(root) {
+        if (panelVisible(findPanelById(root, PANEL_IDS.pregame))) return "pregame";
+        if (panelVisible(findPanelById(root, PANEL_IDS.pregameCountdown))) return "pregame_countdown";
+        if (panelVisible(findPanelById(root, PANEL_IDS.matchStart))) return "match_start";
+        return "";
+    }
+
+    /** Same panels, but a 0×0 phantom does not count. Used only to leave hideout. */
+    function matchEntryReally(root) {
+        if (panelReallyVisible(findPanelById(root, PANEL_IDS.pregame))) return "pregame";
+        if (panelReallyVisible(findPanelById(root, PANEL_IDS.pregameCountdown))) return "pregame_countdown";
+        if (panelReallyVisible(findPanelById(root, PANEL_IDS.matchStart))) return "match_start";
+        return "";
+    }
+
+    function countNamedHeroImages(panel) {
+        var count = 0;
+        function walk(node, depth) {
+            if (!isPanelValid(node) || depth > 8) return;
+            var type = "";
+            try { type = String(node.paneltype || node.type || ""); } catch (e) {}
+            if (type === "CitadelHeroImage") {
+                var hero = readHeroAttr(node);
+                if (!isPlaceholderHero(hero)) count += 1;
+            }
+            try {
+                if (typeof node.GetChildCount === "function") {
+                    var n = Math.min(node.GetChildCount(), 48);
+                    for (var i = 0; i < n; i++) walk(node.GetChild(i), depth + 1);
+                }
+            } catch (e2) {}
+        }
+        walk(panel, 0);
+        return count;
+    }
+
+    function updateTeamHeroCounts(root) {
+        state.friendlyHeroes = countNamedHeroImages(findPanelById(root, "TeamFriendly"));
+        state.enemyHeroes = countNamedHeroImages(findPanelById(root, "TeamEnemy"));
+    }
+
+    function clearLeaveHolds() {
+        state.entryHold = 0;
+        state.portraitHold = 0;
+    }
+
+    /**
+     * Phase while not latched in the hideout.
+     * Hideout GameTime ticks, so clockLive alone is not a match until we have left.
+     */
+    function detectPhaseUnlatched(root) {
         // Real pause overlay — but advancing GameTime means custom/sandbox false pause.
         if (panelReallyVisible(findPanelById(root, PANEL_IDS.paused))) {
             if (state.clockLive) return "in_match";
             return "paused";
         }
         if (panelReallyVisible(findPanelById(root, PANEL_IDS.matchEnd))) return "match_end";
-        if (panelVisible(findPanelById(root, PANEL_IDS.pregame))) return "pregame";
-        if (panelVisible(findPanelById(root, PANEL_IDS.pregameCountdown))) return "pregame_countdown";
-        if (panelVisible(findPanelById(root, PANEL_IDS.matchStart))) return "match_start";
+        var entry = matchEntryPhase(root);
+        if (entry) return entry;
         if (panelVisible(findHeroShopPanel(root)) || treeHasClass(root, "gShopOpen", 12) || rootHasClass(root, "gShopOpen")) {
             return "shop";
         }
@@ -650,6 +707,37 @@
         if (state.clockLive) return "in_match";
         if (isPanelValid(findPanelById(root, PANEL_IDS.hideout))) return "hideout";
         return "unknown";
+    }
+
+    function detectPhase(root) {
+        updateTeamHeroCounts(root);
+        // Visible hideout HUD wins, including a return from a match.
+        if (panelVisible(findPanelById(root, PANEL_IDS.hideout))) {
+            state.place = "hideout";
+            clearLeaveHolds();
+            return "hideout";
+        }
+        // Shop, pause, and the hideout clock hide this panel without leaving.
+        // A one-poll Pregame flash (shop open) must not drop the latch.
+        if (state.place === "hideout") {
+            var entry = matchEntryReally(root);
+            state.entryHold = entry ? state.entryHold + 1 : 0;
+            var bothTeams = state.friendlyHeroes >= 1 && state.enemyHeroes >= 1;
+            state.portraitHold = bothTeams ? state.portraitHold + 1 : 0;
+            if (entry && state.entryHold >= MATCH_LEAVE_POLLS) {
+                state.place = "match";
+                clearLeaveHolds();
+                return entry;
+            }
+            if (state.portraitHold >= MATCH_LEAVE_POLLS) {
+                state.place = "match";
+                clearLeaveHolds();
+                return detectPhaseUnlatched(root);
+            }
+            return "hideout";
+        }
+        clearLeaveHolds();
+        return detectPhaseUnlatched(root);
     }
 
     function hasNumericScore() {
@@ -1305,7 +1393,14 @@
         if (phase !== state.phase) {
             var prev = state.phase;
             state.phase = phase;
-            emit("phase", { phase: phase, previous: prev, clock: state.lastClockText || "" });
+            emit("phase", {
+                phase: phase,
+                previous: prev,
+                clock: state.lastClockText || "",
+                place: state.place || "",
+                friendlyHeroes: state.friendlyHeroes,
+                enemyHeroes: state.enemyHeroes
+            });
             maybeMatchEndDump(root, phase);
         }
 
@@ -1363,7 +1458,9 @@
                         gameEvents: state.panelsFound.gameEvents
                     },
                     friendlyKills: state.friendlyKills,
-                    enemyKills: state.enemyKills
+                    enemyKills: state.enemyKills,
+                    friendlyHeroes: state.friendlyHeroes,
+                    enemyHeroes: state.enemyHeroes
                 }
             );
         }
