@@ -38,15 +38,15 @@
 	opacity: 0.85;
 }
 
-.gShowingRandom #ShopModsListWeapon,.gShowingRandom #ShopModsListArmor,.gShowingRandom #ShopModsListTech,.gShowingRandom #ShopModsSelectedBuild,.gShowingRandom #ShopModsListAll,.gShowingRandom #SearchHeader,.gShowingRandom .HeroFavoritesHeaderLabel
+.gShowingRandom #ShopModsFiltered,.gShowingRandom #ShopModsRecommended,.gShowingRandom #ShopModsSelectedBuild,.gShowingRandom #ShopFilters,.gShowingRandom .HeroFavoritesHeaderLabel
 {
 	opacity: 0;
 	transform: translateY( -20px );
 }
 
-.gShowingRandom #ToggleContainer
+.gShowingRandom #RecommendedNav,.gShowingRandom #FilteredNav
 {
-	opacity: 0;
+	opacity: 0.35;
 }
 
 .gShowingRandom #ShopModListsContainer

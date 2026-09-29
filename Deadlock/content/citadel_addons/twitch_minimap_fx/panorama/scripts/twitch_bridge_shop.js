@@ -405,8 +405,9 @@
     function shopDomReady(root) {
         if (!hasRandomShopApi(root)) return false;
         try {
-            var list = root.FindChildTraverse("ShopModsListWeapon");
-            return !!(list && list.IsValid());
+            var filtered = root.FindChildTraverse("ShopModsFiltered");
+            var host = root.FindChildTraverse("RSVoteNetHost");
+            return !!(filtered && filtered.IsValid() && host && host.IsValid());
         } catch (e) {
             return false;
         }
