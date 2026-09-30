@@ -15,15 +15,21 @@
 	opacity-brush: gradient( linear, 80% 0%, 100% 0%, from( rgb(255, 130, 175) ), to( rgb(200, 80, 130) ) );
 }
 
+/* Keep Random tab at tabHeight — tall selected height shows white tab-shape tail. */
 .gShowingRandom #RandomNav.NavigationButton
 {
-	height: 210px;
 	z-index: 2;
+	overflow: clip;
 }
 
 .gShowingRandom #RandomNav.NavigationButton .ShopNavigationTabBackground
 {
-	height: 230px;
+	opacity-brush: gradient( linear, 0% 0%, 100% 0%, from( rgb(200, 80, 130) ), to( rgb(200, 80, 130) ) );
+}
+
+#RandomNav.NavigationButton
+{
+	overflow: clip;
 }
 
 .RSRandomTabIcon
@@ -42,6 +48,13 @@
 {
 	opacity: 0;
 	transform: translateY( -20px );
+}
+
+/* Briefly show filtered list under opaque overlay so C++ can populate / we can scan. */
+.gShowingRandom.rs-list-live #ShopModsFiltered
+{
+	opacity: 1;
+	transform: none;
 }
 
 .gShowingRandom #RecommendedNav,.gShowingRandom #FilteredNav
@@ -72,6 +85,7 @@
 {
 	opacity: 1;
 	hittest: true;
+	background-color: #070b0be8;
 }
 
 .RSTitle

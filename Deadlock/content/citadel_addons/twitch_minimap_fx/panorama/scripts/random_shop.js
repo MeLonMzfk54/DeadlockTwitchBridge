@@ -62,10 +62,17 @@
         'ShopModsListArmor': 'showingArmor',
         'ShopModsListTech': 'showingTech'
     };
+    var LIST_TO_NAV = {
+        'ShopModsListWeapon': 'WeaponNav',
+        'ShopModsListArmor': 'ArmorNav',
+        'ShopModsListTech': 'TechNav'
+    };
     var TIER_COSTS  = { 1: 800, 2: 1600, 3: 3200, 4: 6400 };
+    var COST_TO_TIER = { 800: 1, 1600: 2, 3200: 3, 6400: 4 };
 
     // Suppresses the native-tab watcher while we CitadelSelectShopTab to populate #ShopModsFiltered.
     var _suppressDeactivation = false;
+    var _listLiveDepth = 0;
 
     // Snapshot of showingX classes that were present when Random tab was activated.
     // The watcher only deactivates if a NEW showingX class appears (not one from this list).
@@ -321,16 +328,62 @@
     // ============================================================
     // Helpers
     // ============================================================
+    function setListLive(on) {
+        try {
+            var root = $.GetContextPanel();
+            if (!root || !root.IsValid()) return;
+            if (on) {
+                _listLiveDepth += 1;
+                root.AddClass('rs-list-live');
+            } else {
+                _listLiveDepth = Math.max(0, _listLiveDepth - 1);
+                if (_listLiveDepth === 0) root.RemoveClass('rs-list-live');
+            }
+        } catch (eLive) {}
+    }
+
+    function panelHasTierClass(panel, tierNum) {
+        if (!panel || !panel.IsValid() || !tierNum) return false;
+        var names = ['tier' + tierNum, 'Tier' + tierNum, 'rs-tier' + tierNum];
+        var i;
+        for (i = 0; i < names.length; i++) {
+            try {
+                if (panel.BHasClass(names[i])) return true;
+            } catch (e) {}
+        }
+        return false;
+    }
+
+    function tierFromCostLabels(panel) {
+        if (!panel || !panel.IsValid()) return 0;
+        var nums = [];
+        try { collectNumbers(panel, nums, 0); } catch (e) { return 0; }
+        var i;
+        for (i = 0; i < nums.length; i++) {
+            if (COST_TO_TIER[nums[i]]) return COST_TO_TIER[nums[i]];
+        }
+        return 0;
+    }
+
     function getTierFromPanel(panel, listRoot) {
         var p = panel;
         while (p && p !== listRoot) {
             var pid = p.id || '';
             if (pid.length > 0 && pid.toLowerCase().indexOf('tier') !== -1) {
                 var digits = pid.replace(/\D/g, '');
-                if (digits.length > 0) return parseInt(digits, 10);
+                if (digits.length > 0) {
+                    var fromId = parseInt(digits, 10);
+                    if (fromId >= 1 && fromId <= 4) return fromId;
+                }
+            }
+            var ti;
+            for (ti = 1; ti <= 4; ti++) {
+                if (panelHasTierClass(p, ti)) return ti;
             }
             p = p.GetParent();
         }
+        var fromCost = tierFromCostLabels(panel);
+        if (fromCost) return fromCost;
         return 0;
     }
 
@@ -351,6 +404,30 @@
         }
     }
 
+    function countShopMods(listRoot) {
+        var mods = [];
+        findShopModPanels(listRoot, mods, 0);
+        return mods.length;
+    }
+
+    function dumpFilteredListChildren(list) {
+        if (!list || !list.IsValid()) {
+            $.Msg('[RandomShop] #ShopModsFiltered missing');
+            return;
+        }
+        var bits = [];
+        var n = 0;
+        try { n = list.GetChildCount ? list.GetChildCount() : 0; } catch (eN) { n = 0; }
+        var i;
+        for (i = 0; i < Math.min(n, 8); i++) {
+            var ch = null;
+            try { ch = list.GetChild(i); } catch (eCh) { continue; }
+            if (!ch || !ch.IsValid()) continue;
+            bits.push((ch.paneltype || '?') + '#' + (ch.id || '') + '[' + (ch.GetClasses ? String(ch.GetClasses()) : '') + ']');
+        }
+        $.Msg('[RandomShop] #ShopModsFiltered children=' + n + ' sample=' + (bits.join(' | ') || '(none)'));
+    }
+
     function resolveModClass(shopMod) {
         if (!shopMod || !shopMod.IsValid()) return '';
         var ci;
@@ -369,8 +446,19 @@
         return '';
     }
 
+    function syntheticModClass(shopMod, itemType) {
+        if (itemType) return 'rs_type_' + itemType;
+        var pid = '';
+        try { pid = shopMod.id || ''; } catch (e) {}
+        if (pid) return 'rs_id_' + pid;
+        return 'rs_mod_unknown';
+    }
+
     function findIconForClass(shopMod, cls) {
         if (!shopMod || !cls) return shopMod;
+        if (cls.indexOf('rs_type_') === 0 || cls.indexOf('rs_id_') === 0 || cls === 'rs_mod_unknown') {
+            return shopMod;
+        }
         try {
             if (typeof shopMod.BHasClass === 'function' && shopMod.BHasClass(cls)) return shopMod;
         } catch (e) {}
@@ -419,9 +507,24 @@
         }
     }
 
-    function selectShopTab(tabEvent) {
-        if (!tabEvent) return;
-        try { $.DispatchEvent('CitadelSelectShopTab', tabEvent); } catch (e) {}
+    function activateNavButton(listId) {
+        var navId = LIST_TO_NAV[listId];
+        if (!navId) return;
+        try {
+            var root = $.GetContextPanel();
+            var nav = root.FindChildTraverse(navId);
+            if (!nav || !nav.IsValid()) return;
+            try { nav.SetFocus(); } catch (eF) {}
+            try { $.DispatchEvent('Activated', nav, 'mouse'); } catch (eA) {}
+            try { $.DispatchEvent('MouseButtonActivate', nav, 0); } catch (eM) {}
+        } catch (eNav) {}
+    }
+
+    function selectShopTab(tabEvent, listId) {
+        if (tabEvent) {
+            try { $.DispatchEvent('CitadelSelectShopTab', tabEvent); } catch (e) {}
+        }
+        if (listId) activateNavButton(listId);
     }
 
     function listIdFromShowing() {
@@ -435,15 +538,28 @@
         return LIST_IDS[0];
     }
 
-    function waitForShowingClass(cls, cb) {
+    /** Wait for showing* class, then for CitadelShopMod children (or timeout). */
+    function waitForFilteredReady(listId, cb) {
+        var showing = LIST_TO_SHOWING[listId] || '';
+        var tab = LIST_TO_TAB[listId];
         var attempts = 0;
+        var retriedNav = false;
+
         function tick() {
-            var ready = false;
-            try {
-                ready = !cls || $.GetContextPanel().BHasClass(cls);
-            } catch (e) {}
-            if (ready || attempts >= 24) {
-                $.Schedule(0.08, cb);
+            var root = $.GetContextPanel();
+            var hasShowing = !showing;
+            try { hasShowing = !showing || root.BHasClass(showing); } catch (e) {}
+
+            if (!hasShowing && attempts === 8 && !retriedNav) {
+                retriedNav = true;
+                selectShopTab(tab, listId);
+            }
+
+            var list = getFilteredList();
+            var modCount = list && list.IsValid() ? countShopMods(list) : 0;
+            if ((hasShowing && modCount > 0) || attempts >= 36) {
+                if (modCount === 0) dumpFilteredListChildren(list);
+                $.Schedule(0.06, cb);
                 return;
             }
             attempts += 1;
@@ -467,18 +583,22 @@
             var tier = getTierFromPanel(shopMod, list);
             if (tier !== tierNum) continue;
             var cls = resolveModClass(shopMod);
-            if (!cls) continue;
+            var type = getItemType(shopMod);
+            if (!cls) cls = syntheticModClass(shopMod, type);
             var icon = findIconForClass(shopMod, cls);
+            if (!type) type = getItemType(icon);
             var dup = false;
             var di;
             for (di = 0; di < result.length; di++) {
-                if (result[di].icon === icon || result[di].shopMod === shopMod) { dup = true; break; }
+                if (result[di].shopMod === shopMod) { dup = true; break; }
+                if (type && result[di].type === type && result[di].listId === listId) { dup = true; break; }
+                if (result[di].cls === cls && result[di].listId === listId) { dup = true; break; }
             }
             if (!dup) {
                 result.push({
                     icon: icon,
                     shopMod: shopMod,
-                    type: getItemType(icon),
+                    type: type,
                     cls: cls,
                     listId: listId
                 });
@@ -532,6 +652,10 @@
         for (i = 0; i < items.length; i++) {
             dup = false;
             for (di = 0; di < acc.length; di++) {
+                if (items[i].type && acc[di].type === items[i].type && acc[di].listId === items[i].listId) {
+                    dup = true;
+                    break;
+                }
                 if (acc[di].cls === items[i].cls && acc[di].listId === items[i].listId) {
                     dup = true;
                     break;
@@ -554,6 +678,7 @@
         var acc = [];
         var idx = 0;
         _suppressDeactivation = true;
+        setListLive(true);
 
         function finish() {
             var root = $.GetContextPanel();
@@ -561,6 +686,7 @@
                 root.AddClass('gShowingRandom');
                 snapshotShowingClasses(root);
             } catch (eFin) {}
+            setListLive(false);
             $.Schedule(0.12, function () { _suppressDeactivation = false; });
             onDone(acc);
         }
@@ -571,8 +697,8 @@
                 return;
             }
             var listId = enabled[idx++];
-            selectShopTab(LIST_TO_TAB[listId]);
-            waitForShowingClass(LIST_TO_SHOWING[listId], function () {
+            selectShopTab(LIST_TO_TAB[listId], listId);
+            waitForFilteredReady(listId, function () {
                 pushUniqueItems(acc, scanCurrentFilteredForTier(tierNum, listId));
                 $.Schedule(0.06, next);
             });
@@ -653,9 +779,13 @@
                 var nums = [];
                 collectNumbers(goldAP, nums, 0);
                 if (nums.length > 0) {
-                    // Souls are at index 2 in GoldAPContainer's label list.
-                    var souls = nums.length > 2 ? nums[2] : nums[0];
-                    return souls;
+                    // Historical layout used index 2 for current souls; fall back if that slot is 0.
+                    if (nums.length > 2 && nums[2] > 0) return nums[2];
+                    var gi;
+                    for (gi = 0; gi < nums.length; gi++) {
+                        if (nums[gi] > 0) return nums[gi];
+                    }
+                    return nums.length > 2 ? nums[2] : nums[0];
                 }
             }
             // Fallback: SoulAmount shows total collected (less accurate)
@@ -882,32 +1012,53 @@
     }
 
     function findItemShopModPanel() {
-        var root = $.GetContextPanel();
         var list = getFilteredList();
         if (!list || !list.IsValid()) return null;
-        if (!state.itemClass) return null;
-        var panels = [];
-        try {
-            panels = list.FindChildrenWithClassTraverse(state.itemClass) || [];
-        } catch (e) { return null; }
-        for (var i = 0; i < panels.length; i++) {
-            var icon = panels[i];
-            if (!icon || !icon.IsValid()) continue;
-            if (getTierFromPanel(icon, list) !== state.itemTier) continue;
-            var p = icon;
-            while (p && p.IsValid()) { if (p.paneltype === 'CitadelShopMod') return p; p = p.GetParent(); }
+        if (!state.itemClass && !state.itemType) return null;
+
+        // Prefer CSS class match (real item classes).
+        if (state.itemClass && state.itemClass.indexOf('rs_') !== 0) {
+            var panels = [];
+            try {
+                panels = list.FindChildrenWithClassTraverse(state.itemClass) || [];
+            } catch (e) { panels = []; }
+            for (var i = 0; i < panels.length; i++) {
+                var icon = panels[i];
+                if (!icon || !icon.IsValid()) continue;
+                if (getTierFromPanel(icon, list) !== state.itemTier) continue;
+                var p = icon;
+                while (p && p.IsValid()) {
+                    if (p.paneltype === 'CitadelShopMod') return p;
+                    p = p.GetParent();
+                }
+            }
+        }
+
+        // Match by itemType / synthetic class across live CitadelShopMod tree.
+        var mods = [];
+        findShopModPanels(list, mods, 0);
+        var mi;
+        for (mi = 0; mi < mods.length; mi++) {
+            var shopMod = mods[mi];
+            if (!shopMod || !shopMod.IsValid()) continue;
+            if (getTierFromPanel(shopMod, list) !== state.itemTier) continue;
+            var type = getItemType(shopMod);
+            if (state.itemType && type === state.itemType) return shopMod;
+            var cls = resolveModClass(shopMod) || syntheticModClass(shopMod, type);
+            if (state.itemClass && cls === state.itemClass) return shopMod;
         }
         return null;
     }
 
     function isRolledItemOwned() {
-        if (!state.itemClass || !state.itemListId) return false;
+        if (!state.itemClass && !state.itemType) return false;
         var shopMod = findItemShopModPanel();
         if (shopMod && shopMod.IsValid()) {
             try {
                 if (shopMod.BHasClass('owned')) return true;
             } catch (e) {}
         }
+        if (!state.itemClass || state.itemClass.indexOf('rs_') === 0) return false;
         var list = getFilteredList();
         if (!list || !list.IsValid()) return false;
         var panels = [];
@@ -927,15 +1078,16 @@
     // keep gShowingRandom overlay active, update snapshot, then call cb().
     function navigateToListThenCall(cb) {
         var tab = LIST_TO_TAB[state.itemListId];
-        var showing = LIST_TO_SHOWING[state.itemListId];
         if (!tab) { cb(); return; }
         _suppressDeactivation = true;
-        selectShopTab(tab);
-        waitForShowingClass(showing, function () {
+        setListLive(true);
+        selectShopTab(tab, state.itemListId);
+        waitForFilteredReady(state.itemListId, function () {
             var root = $.GetContextPanel();
             root.AddClass('gShowingRandom');
             snapshotShowingClasses(root);
             $.Schedule(0.08, function () {
+                setListLive(false);
                 _suppressDeactivation = false;
                 cb();
             });
@@ -951,23 +1103,34 @@
         if (isRolledItemOwned()) return false;
         $.Msg('[RandomShop] Background CitadelShopPurchaseMod type=' + state.itemType);
         try { $.DispatchEvent('CitadelShopPurchaseMod', state.itemType); } catch (e) {}
+        try { $.DispatchEvent('CitadelPurchaseItem', state.itemType); } catch (e2) {}
         return true;
     }
 
-    // UI fallback: single Activated click on non-owned CitadelShopMod panel.
+    // UI fallback: shotgun activate on live CitadelShopMod + purchase by type from that panel.
     function triggerUiFallbackPurchase() {
         if (isRolledItemOwned()) return false;
         var shopMod = findItemShopModPanel();
         if (!shopMod || !shopMod.IsValid()) {
-            $.Msg('[RandomShop] UI fallback: panel not found for cls=' + state.itemClass);
+            $.Msg('[RandomShop] UI fallback: panel not found for cls=' + state.itemClass + ' type=' + state.itemType);
             return false;
         }
         try {
             if (shopMod.BHasClass('owned')) return false;
         } catch (eOwned) {}
-        $.Msg('[RandomShop] UI fallback Activated id=' + (shopMod.id || '?'));
+        var liveType = getItemType(shopMod) || state.itemType;
+        if (liveType) state.itemType = liveType;
+        $.Msg('[RandomShop] UI fallback Activated id=' + (shopMod.id || '?') + ' type=' + liveType);
         try { shopMod.SetFocus(); } catch (e) {}
+        try { shopMod.SetInputFocus(); } catch (eInp) {}
         try { $.DispatchEvent('Activated', shopMod, 'mouse'); } catch (e2) {}
+        try { $.DispatchEvent('PanelActivated', shopMod); } catch (e3) {}
+        try { $.DispatchEvent('MouseButtonActivate', shopMod, 0); } catch (e4) {}
+        try { $.DispatchEvent('UIEvent.MouseActivate', shopMod); } catch (e5) {}
+        if (liveType) {
+            try { $.DispatchEvent('CitadelShopPurchaseMod', liveType); } catch (e6) {}
+            try { $.DispatchEvent('CitadelPurchaseItem', liveType); } catch (e7) {}
+        }
         return true;
     }
 
@@ -1022,13 +1185,15 @@
             try { onTab = $.GetContextPanel().BHasClass(needShowing); } catch (eTab) {}
             if (!onTab) {
                 _suppressDeactivation = true;
-                selectShopTab(LIST_TO_TAB[state.itemListId]);
-                $.Schedule(0.12, function () {
+                setListLive(true);
+                selectShopTab(LIST_TO_TAB[state.itemListId], state.itemListId);
+                $.Schedule(0.15, function () {
                     try {
                         var root = $.GetContextPanel();
                         root.AddClass('gShowingRandom');
                         snapshotShowingClasses(root);
                     } catch (eSnap) {}
+                    setListLive(false);
                     _suppressDeactivation = false;
                     schedulePurchaseTick(gen, 0.05);
                 });
@@ -1253,6 +1418,7 @@
         }
         var idx = 0;
         _suppressDeactivation = true;
+        setListLive(true);
 
         function applyCounts() {
             var root = $.GetContextPanel();
@@ -1260,6 +1426,7 @@
                 root.AddClass('gShowingRandom');
                 snapshotShowingClasses(root);
             } catch (e) {}
+            setListLive(false);
             $.Schedule(0.1, function () { _suppressDeactivation = false; });
             var t;
             for (t = 1; t <= 4; t++) {
@@ -1275,8 +1442,8 @@
                 return;
             }
             var listId = enabled[idx++];
-            selectShopTab(LIST_TO_TAB[listId]);
-            waitForShowingClass(LIST_TO_SHOWING[listId], function () {
+            selectShopTab(LIST_TO_TAB[listId], listId);
+            waitForFilteredReady(listId, function () {
                 var t;
                 for (t = 1; t <= 4; t++) {
                     counts[t] += scanCurrentFilteredForTier(t, listId).length;
@@ -1367,6 +1534,7 @@
         var items = precollected || collectItemsForTier(tierNum);
         if (items.length === 0) {
             if (msg) msg.text = 'All ' + getEnabledCatString() + ' Tier ' + tierNum + ' items owned!';
+            dumpFilteredListChildren(getFilteredList());
             emitShopError({
                 reason: 'no_items',
                 tier: tierNum,
