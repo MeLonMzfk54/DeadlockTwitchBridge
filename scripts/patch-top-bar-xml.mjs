@@ -28,7 +28,13 @@ const INCLUDES = [
     marker: "twitch_bridge_vote_announce.js",
     line: '\t\t<include src="file://{resources}/scripts/twitch_bridge_vote_announce.js" />',
   },
+  {
+    marker: "twitch_bridge_crosshair.js",
+    line: '\t\t<include src="file://{resources}/scripts/twitch_bridge_crosshair.js" />',
+  },
 ];
+
+const CROSSHAIR_HOST = '\t\t<Panel id="BridgeCrosshairNetHost" hittest="false" />';
 
 const DEFAULT_SOURCES = [
   process.env.DEADLOCK_GAME_DIR
@@ -95,6 +101,18 @@ function ensureIncludes(source) {
       const block = `\n\t<scripts>\n${inc.line}\n\t</scripts>`;
       result = result.slice(0, insertAt) + block + result.slice(insertAt);
     }
+  }
+
+  if (!result.includes("BridgeCrosshairNetHost")) {
+    const voteHost = '<Panel id="BridgeVoteNetHost" hittest="false" />';
+    const voteIdx = result.indexOf(voteHost);
+    if (voteIdx !== -1) {
+      const insertAt = voteIdx + voteHost.length;
+      result = result.slice(0, insertAt) + "\n" + CROSSHAIR_HOST + result.slice(insertAt);
+      inserted.push("BridgeCrosshairNetHost");
+    }
+  } else {
+    already.push("BridgeCrosshairNetHost");
   }
 
   return { source: result, inserted, already };

@@ -22,6 +22,27 @@
 	overflow: clip;
 }
 
+/* Random shows the All Items catalog, which also selects #FilteredNav.
+   Vanilla selected tabs grow to 200px and push the rest of the nav down. */
+.gShowingRandom.showingAllItems #FilteredNav.NavigationButton,
+.gShowingRandom.showingAllItems #FilteredNav.NavigationButton .ShopNavigationTabBackground,
+.gShowingRandom.showingAllItems #FilteredNav.NavigationButton .ShopNavigationTabEdgeOverlay,
+.gShowingRandom.showingAllItems #FilteredNav.NavigationButton .ShopNavigationTabIcon
+{
+	height: 75px;
+}
+
+.gShowingRandom.showingAllItems #FilteredNav.NavigationButton
+{
+	z-index: 0;
+	overflow: clip;
+}
+
+.gShowingRandom.showingAllItems #FilteredNav .ShopNavigationTabBackground
+{
+	opacity-brush: gradient( linear, 85% 0%, 100% 0%, from( rgb(178, 178, 175) ), color-stop( 0.5, rgb(170, 176, 124) ), to( rgb(170, 176, 124) ) );
+}
+
 .gShowingRandom #RandomNav.NavigationButton .ShopNavigationTabBackground
 {
 	opacity-brush: gradient( linear, 0% 0%, 100% 0%, from( rgb(200, 80, 130) ), to( rgb(200, 80, 130) ) );
@@ -54,7 +75,7 @@
 /* Leave room under the vote strip so the catalog title and tier grid are not covered. */
 .gShowingRandom #ShopModsFiltered
 {
-	margin-top: 118px;
+	margin-top: 158px;
 }
 
 #RandomShopContent
@@ -155,7 +176,8 @@
 {
 	flow-children: right;
 	width: 100%;
-	margin-bottom: 4px;
+	height: 32px;
+	margin-bottom: 6px;
 }
 
 .RSFilterBtn
@@ -163,7 +185,7 @@
 	flow-children: right;
 	vertical-align: center;
 	width: fill-parent-flow( 1.0 );
-	height: 22px;
+	height: 32px;
 	border-radius: 4px;
 	margin-right: 6px;
 	padding: 0px 8px;
@@ -209,7 +231,7 @@
 
 .RSFilterLabel
 {
-	font-size: 10px;
+	font-size: 12px;
 	font-weight: bold;
 	text-transform: uppercase;
 	letter-spacing: 1px;
@@ -295,12 +317,13 @@
 {
 	flow-children: right;
 	width: 100%;
+	height: 42px;
 }
 
 .RSTierBtn
 {
 	width: fill-parent-flow( 1.0 );
-	height: 28px;
+	height: 42px;
 	flow-children: right;
 	margin-bottom: 0px;
 	margin-right: 6px;
@@ -344,7 +367,8 @@
 .RSTierAccent
 {
 	width: 5px;
-	height: 100%;
+	height: 42px;
+	vertical-align: center;
 }
 
 .tier1Accent
@@ -377,11 +401,11 @@
 
 .RSTierLabel
 {
-	font-size: 12px;
+	font-size: 13px;
 	font-weight: bold;
 	color: #b8c8d8;
 	vertical-align: center;
-	margin-right: 4px;
+	width: fill-parent-flow( 1.0 );
 }
 
 .RSTierPct

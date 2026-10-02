@@ -15,6 +15,7 @@ panorama/layout/citadel_hud_top_bar.xml      ← stock + events + vote announce
 panorama/layout/citadel_hud_hero_shop.xml    ← Random Shop + twitch_bridge_shop.js
 panorama/scripts/twitch_bridge_events.js
 panorama/scripts/twitch_bridge_vote_announce.js
+panorama/scripts/twitch_bridge_crosshair.js
 panorama/scripts/twitch_bridge_shop.js
 panorama/scripts/random_shop.js
 panorama/styles/random_shop.css
@@ -63,7 +64,7 @@ addoninfo.txt
 
 | Файл | Назначение |
 |------|------------|
-| `citadel_hud_top_bar.xml` | телеметрия (`twitch_bridge_events.js`) + баннер голосования (`twitch_bridge_vote_announce.js`) |
+| `citadel_hud_top_bar.xml` | телеметрия (`twitch_bridge_events.js`) + баннер голосования (`twitch_bridge_vote_announce.js`) + огромный прицел (`twitch_bridge_crosshair.js`) |
 | `citadel_hud_hero_shop.xml` | Random Shop + `twitch_bridge_shop.js` (без `id` на root — компилятор запрещает) |
 | `random_shop.js` | ролл + безопасная покупка (background → UI fallback) |
 | `twitch_bridge_shop.js` | PNG HUD + PNG cmd apply, cfg-poll backup, HUD Start/Skip, `shop_open`/`shop_closed` (mod **1.9.0**) |
