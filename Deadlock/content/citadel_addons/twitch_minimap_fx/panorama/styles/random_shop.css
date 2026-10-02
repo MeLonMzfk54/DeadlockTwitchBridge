@@ -44,39 +44,31 @@
 	opacity: 0.85;
 }
 
-.gShowingRandom #ShopModsFiltered,.gShowingRandom #ShopModsRecommended,.gShowingRandom #ShopModsSelectedBuild,.gShowingRandom #ShopFilters,.gShowingRandom .HeroFavoritesHeaderLabel
+/* Catalog grid stays visible. Builds / recommended / filters stay out of the way. */
+.gShowingRandom #ShopModsRecommended,.gShowingRandom #ShopModsSelectedBuild,.gShowingRandom #ShopFilters,.gShowingRandom .HeroFavoritesHeaderLabel
 {
 	opacity: 0;
 	transform: translateY( -20px );
 }
 
-/* Briefly show filtered list under opaque overlay so C++ can populate / we can scan. */
-.gShowingRandom.rs-list-live #ShopModsFiltered
+/* Leave room under the vote strip so the catalog title and tier grid are not covered. */
+.gShowingRandom #ShopModsFiltered
 {
-	opacity: 1;
-	transform: none;
-}
-
-.gShowingRandom #RecommendedNav,.gShowingRandom #FilteredNav
-{
-	opacity: 0.35;
-}
-
-.gShowingRandom #ShopModListsContainer
-{
-	background-image: url("s2r://panorama/images/shop/catalog/catalog_shop_generic_bg_psd.vtex");
+	margin-top: 118px;
 }
 
 #RandomShopContent
 {
 	ignore-parent-flow: true;
 	width: 100%;
-	height: 100%;
+	height: fit-children;
+	vertical-align: top;
 	z-index: 50;
 	flow-children: down;
-	padding: 28px 24px 24px 24px;
+	padding: 4px 10px 4px 10px;
 	opacity: 0;
 	hittest: false;
+	overflow: noclip;
 	transition-property: opacity;
 	transition-duration: 0.21s;
 }
@@ -85,35 +77,36 @@
 {
 	opacity: 1;
 	hittest: true;
-	background-color: #070b0be8;
+	background-color: #e6dcc8f2;
+	border-bottom: 1px solid #00000022;
 }
 
 .RSTitle
 {
-	font-size: 20px;
+	font-size: 14px;
 	font-weight: bold;
 	text-transform: uppercase;
-	letter-spacing: 5px;
-	color: #d8c89a;
+	letter-spacing: 3px;
+	color: #3a3228;
 	horizontal-align: center;
 	text-align: center;
-	margin-bottom: 4px;
+	margin-bottom: 0px;
 }
 
 .RSSubtitle
 {
 	font-size: 11px;
-	color: #4a5a6a;
+	color: #5c5348;
 	horizontal-align: center;
 	text-align: center;
-	margin-bottom: 4px;
+	margin-bottom: 2px;
 }
 
 #RSVoteStartBtn.RSVoteStartBtn
 {
 	width: 100%;
-	height: 36px;
-	margin-bottom: 12px;
+	height: 24px;
+	margin-bottom: 4px;
 	border-radius: 5px;
 	border: 1px solid #3a5878;
 	background-color: #121c2c;
@@ -162,7 +155,7 @@
 {
 	flow-children: right;
 	width: 100%;
-	margin-bottom: 14px;
+	margin-bottom: 4px;
 }
 
 .RSFilterBtn
@@ -170,7 +163,7 @@
 	flow-children: right;
 	vertical-align: center;
 	width: fill-parent-flow( 1.0 );
-	height: 26px;
+	height: 22px;
 	border-radius: 4px;
 	margin-right: 6px;
 	padding: 0px 8px;
@@ -300,22 +293,33 @@
 
 #RSTierButtons
 {
-	flow-children: down;
+	flow-children: right;
 	width: 100%;
 }
 
 .RSTierBtn
 {
-	width: 100%;
-	height: 62px;
+	width: fill-parent-flow( 1.0 );
+	height: 28px;
 	flow-children: right;
-	margin-bottom: 8px;
+	margin-bottom: 0px;
+	margin-right: 6px;
 	border-radius: 5px;
 	background-color: #0f1622;
 	border: 1px solid #1a2840;
 	transition-property: brightness, pre-transform-scale2d;
 	transition-duration: 0.1s;
 	overflow: noclip;
+}
+
+#RSTier4.RSTierBtn
+{
+	margin-right: 0px;
+}
+
+.RSTierSpacer
+{
+	visibility: collapse;
 }
 
 .rs-mode-rolled .RSTierBtn
@@ -367,17 +371,17 @@
 {
 	flow-children: right;
 	vertical-align: center;
-	padding: 0px 18px;
+	padding: 0px 6px;
 	width: fill-parent-flow( 1.0 );
 }
 
 .RSTierLabel
 {
-	font-size: 15px;
+	font-size: 12px;
 	font-weight: bold;
 	color: #b8c8d8;
 	vertical-align: center;
-	margin-right: 8px;
+	margin-right: 4px;
 }
 
 .RSTierPct
@@ -413,10 +417,13 @@
 	visibility: visible;
 }
 
-.RSTierSpacer
+.RSNoItemsMsg
 {
-	width: fill-parent-flow( 1.0 );
-	height: 1px;
+	font-size: 12px;
+	color: #8a3030;
+	horizontal-align: center;
+	text-align: center;
+	margin-top: 2px;
 }
 
 .RSTierBtn.rs-vote-lead
@@ -545,29 +552,18 @@
 	hittest: false;
 }
 
-.RSNoItemsMsg
-{
-	font-size: 12px;
-	color: #b04040;
-	horizontal-align: center;
-	text-align: center;
-	margin-top: 10px;
-}
-
 #RSRolledView
 {
 	visibility: collapse;
-	flow-children: down;
+	flow-children: right;
 	width: 100%;
+	height: 22px;
 	horizontal-align: center;
-	margin-top: 8px;
-	margin-bottom: 12px;
-	padding: 14px 12px 16px 12px;
-	background-color: #0a1420ee;
-	border: 1px solid #3a5878;
-	border-radius: 8px;
-	transition-property: opacity;
-	transition-duration: 0.2s;
+	margin-top: 2px;
+	margin-bottom: 0px;
+	padding: 0px 4px;
+	background-color: none;
+	border: 0px solid #00000000;
 	opacity: 0;
 }
 
@@ -579,14 +575,7 @@
 
 .RSRolledHeader
 {
-	font-size: 11px;
-	font-weight: bold;
-	text-transform: uppercase;
-	letter-spacing: 2px;
-	color: #e0c040;
-	horizontal-align: center;
-	text-align: center;
-	margin-bottom: 10px;
+	visibility: collapse;
 }
 
 .RSDivider
@@ -600,23 +589,7 @@
 
 #RSBigIconWrapper
 {
-	width: 110px;
-	height: 110px;
-	horizontal-align: center;
-	background-color: #0a1020;
-	border: 1px solid #3a5878;
-	border-radius: 8px;
-	margin-bottom: 12px;
-	box-shadow: 0px 0px 22px 6.0 #f0d06033;
-	overflow: noclip;
-	transition-property: pre-transform-scale2d, box-shadow;
-	transition-duration: 0.15s;
-}
-
-#RSRolledView:hover #RSBigIconWrapper
-{
-	pre-transform-scale2d: 1.06;
-	box-shadow: 0px 0px 26px 7.0 #f0d06055;
+	visibility: collapse;
 }
 
 .RSOverlayImage
@@ -630,12 +603,11 @@
 
 .RSItemName
 {
-	font-size: 17px;
+	font-size: 14px;
 	font-weight: bold;
-	color: #dce8f8;
-	horizontal-align: center;
-	text-align: center;
-	margin-bottom: 6px;
+	color: #2a241c;
+	vertical-align: center;
+	margin-right: 8px;
 }
 
 .RSItemTierLabel
@@ -643,9 +615,9 @@
 	font-size: 12px;
 	font-weight: semi-bold;
 	text-transform: uppercase;
-	letter-spacing: 2px;
-	horizontal-align: center;
-	text-align: center;
+	letter-spacing: 1px;
+	vertical-align: center;
+	margin-right: 8px;
 }
 
 .RSItemTierLabel.rs-tier1
@@ -670,11 +642,11 @@
 
 .RSPurchaseStatus
 {
-	font-size: 11px;
-	color: #5090c8;
-	horizontal-align: center;
-	text-align: center;
-	margin-top: 6px;
+	font-size: 12px;
+	font-weight: semi-bold;
+	color: #3a5270;
+	vertical-align: center;
+	margin-top: 0px;
 }
 
 .rs-cant-afford
@@ -700,5 +672,14 @@
 .rs-no-items .RSTierCost
 {
 	color: #704040;
+}
+
+/* Gold outline on the catalog card that this roll will buy. */
+.gShowingRandom CitadelShopMod.rs-rolled-pick
+{
+	border: 2px solid #f7f1e4;
+	box-shadow: 0px 0px 10px 2px #f4e6b888;
+	brightness: 1.4;
+	z-index: 4;
 }
 
