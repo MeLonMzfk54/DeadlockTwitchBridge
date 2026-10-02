@@ -65,24 +65,25 @@
 	opacity: 0.85;
 }
 
-/* Catalog grid stays visible. Builds / recommended / filters stay out of the way. */
+/* Builds / recommended / filters stay out of the way. The item grid is hidden below. */
 .gShowingRandom #ShopModsRecommended,.gShowingRandom #ShopModsSelectedBuild,.gShowingRandom #ShopFilters,.gShowingRandom .HeroFavoritesHeaderLabel
 {
 	opacity: 0;
 	transform: translateY( -20px );
 }
 
-/* Leave room under the vote strip so the catalog title and tier grid are not covered. */
+/* Catalog stays in the DOM for the roll scan, but must not show or accept clicks. */
 .gShowingRandom #ShopModsFiltered
 {
-	margin-top: 158px;
+	opacity: 0;
+	hittest: false;
 }
 
 #RandomShopContent
 {
 	ignore-parent-flow: true;
 	width: 100%;
-	height: fit-children;
+	height: 100%;
 	vertical-align: top;
 	z-index: 50;
 	flow-children: down;
@@ -98,7 +99,7 @@
 {
 	opacity: 1;
 	hittest: true;
-	background-color: #e6dcc8f2;
+	background-color: #e6dcc8;
 	border-bottom: 1px solid #00000022;
 }
 
@@ -303,30 +304,22 @@
 
 .rs-mode-rolled #RSCategoryFilter
 {
-	opacity: 0.4;
 	hittest: false;
-}
-
-/* Free vertical space so the item card is not pushed off-screen */
-.rs-mode-rolled #RSTierButtons
-{
-	visibility: collapse;
 }
 
 #RSTierButtons
 {
-	flow-children: right;
+	flow-children: down;
 	width: 100%;
-	height: 42px;
 }
 
 .RSTierBtn
 {
-	width: fill-parent-flow( 1.0 );
-	height: 42px;
+	width: 100%;
+	height: 62px;
 	flow-children: right;
-	margin-bottom: 0px;
-	margin-right: 6px;
+	margin-bottom: 8px;
+	margin-right: 0px;
 	border-radius: 5px;
 	background-color: #0f1622;
 	border: 1px solid #1a2840;
@@ -337,7 +330,7 @@
 
 #RSTier4.RSTierBtn
 {
-	margin-right: 0px;
+	margin-bottom: 0px;
 }
 
 .RSTierSpacer
@@ -347,7 +340,6 @@
 
 .rs-mode-rolled .RSTierBtn
 {
-	opacity: 0.45;
 	hittest: false;
 }
 
@@ -367,7 +359,7 @@
 .RSTierAccent
 {
 	width: 5px;
-	height: 42px;
+	height: 100%;
 	vertical-align: center;
 }
 
@@ -395,7 +387,7 @@
 {
 	flow-children: right;
 	vertical-align: center;
-	padding: 0px 6px;
+	padding: 0px 18px;
 	width: fill-parent-flow( 1.0 );
 }
 
@@ -579,11 +571,10 @@
 #RSRolledView
 {
 	visibility: collapse;
-	flow-children: right;
+	flow-children: down;
 	width: 100%;
-	height: 22px;
 	horizontal-align: center;
-	margin-top: 2px;
+	margin-top: 10px;
 	margin-bottom: 0px;
 	padding: 0px 4px;
 	background-color: none;
@@ -613,7 +604,15 @@
 
 #RSBigIconWrapper
 {
-	visibility: collapse;
+	width: 96px;
+	height: 96px;
+	horizontal-align: center;
+	background-color: #0a1020;
+	border: 1px solid #1e2d48;
+	border-radius: 6px;
+	margin-bottom: 8px;
+	box-shadow: 0px 0px 18px 5.0 #ffffff14;
+	overflow: noclip;
 }
 
 .RSOverlayImage
@@ -627,11 +626,12 @@
 
 .RSItemName
 {
-	font-size: 14px;
+	font-size: 17px;
 	font-weight: bold;
 	color: #2a241c;
-	vertical-align: center;
-	margin-right: 8px;
+	horizontal-align: center;
+	text-align: center;
+	margin-bottom: 4px;
 }
 
 .RSItemTierLabel
@@ -640,8 +640,9 @@
 	font-weight: semi-bold;
 	text-transform: uppercase;
 	letter-spacing: 1px;
-	vertical-align: center;
-	margin-right: 8px;
+	horizontal-align: center;
+	text-align: center;
+	margin-bottom: 2px;
 }
 
 .RSItemTierLabel.rs-tier1
@@ -669,8 +670,9 @@
 	font-size: 12px;
 	font-weight: semi-bold;
 	color: #3a5270;
-	vertical-align: center;
-	margin-top: 0px;
+	horizontal-align: center;
+	text-align: center;
+	margin-top: 4px;
 }
 
 .rs-cant-afford
