@@ -80,6 +80,15 @@ describe("mergeShopVoteSettings", () => {
     assert.equal(d.chatAnnounceCombined, DEFAULT_CHAT_ANNOUNCE_COMBINED);
     assert.equal(d.autoStartIntervalMinMs, DEFAULT_SHOP_VOTE_AUTO_INTERVAL_MIN_MS);
     assert.equal(d.autoStartIntervalMaxMs, DEFAULT_SHOP_VOTE_AUTO_INTERVAL_MAX_MS);
+    assert.equal(d.itemWinnerMode, "random_among_voted");
+  });
+
+  it("merges itemWinnerMode", () => {
+    const base = defaultShopVoteSettings();
+    const next = mergeShopVoteSettings(base, { itemWinnerMode: "plurality" });
+    assert.equal(next.itemWinnerMode, "plurality");
+    const ignored = mergeShopVoteSettings(base, { itemWinnerMode: "bogus" });
+    assert.equal(ignored.itemWinnerMode, "random_among_voted");
   });
 });
 

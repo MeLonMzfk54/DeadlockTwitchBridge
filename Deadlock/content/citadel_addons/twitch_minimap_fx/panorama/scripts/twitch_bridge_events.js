@@ -409,11 +409,13 @@
         var seq = Number.parseInt(obj.seq, 10);
         var cat = Number.parseInt(obj.cat, 10);
         var tier = Number.parseInt(obj.tier, 10);
+        var pick = Number.parseInt(obj.pick, 10);
         if (!Number.isFinite(seq)) return null;
         return {
             seq: seq,
             cat: Number.isFinite(cat) ? cat : 0,
             tier: Number.isFinite(tier) ? tier : 0,
+            pick: Number.isFinite(pick) ? pick : 0,
             pending: !!obj.pending
         };
     }
@@ -437,6 +439,7 @@
                 seq: cmd.seq,
                 cat: cmd.cat,
                 tier: cmd.tier,
+                pick: cmd.pick || 0,
                 pending: cmd.pending,
                 source: source || "events",
                 shopOpen: readShopOpenHint()

@@ -7,6 +7,9 @@ const SHOP_CVAR_LINES = [
   "bridge_shop_seq 0",
   "bridge_shop_cat 0",
   "bridge_shop_tier 0",
+  "bridge_shop_pick 0",
+  "bridge_shop_cls 0",
+  "bridge_shop_scan 0",
   "bridge_vote_banner_seq 0",
   "bridge_vote_banner_kind 0",
   "bridge_vote_banner_win 0",
@@ -86,13 +89,30 @@ export function ensureCfgBindSetup(options: CfgBindSetupOptions): CfgBindSetupRe
 /** Ensure shop vote convars exist in autoexec so exec doesn't warn Unknown command. */
 export function ensureShopConvarDefaults(cfgDir: string): boolean {
   const autoexecPath = join(cfgDir, "autoexec.cfg");
-  const content = existsSync(autoexecPath) ? readFileSync(autoexecPath, "utf8") : "";
-  if (content.includes(SHOP_CVAR_MARKER)) return false;
+  let content = existsSync(autoexecPath) ? readFileSync(autoexecPath, "utf8") : "";
+  let updated = false;
 
-  const prefix = content.length > 0 && !content.endsWith("\n") ? "\n" : "";
-  const block = `${SHOP_CVAR_MARKER}\n${SHOP_CVAR_LINES.join("\n")}\n`;
-  writeFileSync(autoexecPath, `${content}${prefix}\n${block}`, "utf8");
-  return true;
+  if (!content.includes(SHOP_CVAR_MARKER)) {
+    const prefix = content.length > 0 && !content.endsWith("\n") ? "\n" : "";
+    const block = `${SHOP_CVAR_MARKER}\n${SHOP_CVAR_LINES.join("\n")}\n`;
+    content = `${content}${prefix}\n${block}`;
+    updated = true;
+  } else {
+    const missing = SHOP_CVAR_LINES.filter((line) => {
+      const name = line.split(/\s+/)[0];
+      return !new RegExp(`^\\s*${escapeRegex(name)}\\b`, "m").test(content);
+    });
+    if (missing.length > 0) {
+      const prefix = content.length > 0 && !content.endsWith("\n") ? "\n" : "";
+      content = `${content}${prefix}${missing.join("\n")}\n`;
+      updated = true;
+    }
+  }
+
+  if (updated) {
+    writeFileSync(autoexecPath, content, "utf8");
+  }
+  return updated;
 }
 
 function escapeRegex(value: string): string {

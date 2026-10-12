@@ -8,9 +8,22 @@ export const PNG_BASE = 15;
 export const PROBE_W = 600;
 export const PROBE_H = 1000;
 
-export type HudSlot = "cats" | "t12" | "t34" | "meta" | "cmd" | "banner";
+export type HudSlot =
+  | "cats"
+  | "t12"
+  | "t34"
+  | "meta"
+  | "cmd"
+  | "banner";
 
-export const HUD_SLOTS: readonly HudSlot[] = ["cats", "t12", "t34", "meta", "cmd", "banner"];
+export const HUD_SLOTS: readonly HudSlot[] = [
+  "cats",
+  "t12",
+  "t34",
+  "meta",
+  "cmd",
+  "banner",
+];
 
 /** banner.h = kind * BANNER_KIND_STRIDE + win. kind 1–4, win 0–34. */
 export const BANNER_KIND_STRIDE = 40;
@@ -28,6 +41,8 @@ const STAGE_TO_LEVEL: Record<ShopVoteStage, number> = {
   purchased: 6,
   failed: 7,
   voting_combined: 8,
+  awaiting_catalog: 9,
+  voting_items: 10,
 };
 
 const LEVEL_TO_STAGE: Record<number, ShopVoteStage> = {
@@ -40,6 +55,8 @@ const LEVEL_TO_STAGE: Record<number, ShopVoteStage> = {
   6: "purchased",
   7: "failed",
   8: "voting_combined",
+  9: "awaiting_catalog",
+  10: "voting_items",
 };
 
 export function clampLevel(level: number, max = 100): number {
@@ -61,7 +78,7 @@ export function stageToLevel(stage: ShopVoteStage): number {
 }
 
 export function levelToStage(level: number): ShopVoteStage {
-  return LEVEL_TO_STAGE[clampLevel(level, 8)] ?? "idle";
+  return LEVEL_TO_STAGE[clampLevel(level, 10)] ?? "idle";
 }
 
 export function timerSecondsFromSnapshot(snap: Pick<ShopVoteSnapshot, "stageEndsAt">): number {

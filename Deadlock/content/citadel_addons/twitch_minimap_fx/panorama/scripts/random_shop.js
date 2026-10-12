@@ -67,8 +67,22 @@
         'ShopModsListArmor': 'ArmorNav',
         'ShopModsListTech': 'TechNav'
     };
+    var LIST_TO_CATEGORY = {
+        'ShopModsListWeapon': 'weapon',
+        'ShopModsListArmor': 'vitality',
+        'ShopModsListTech': 'spirit'
+    };
     var TIER_COSTS  = { 1: 800, 2: 1600, 3: 3200, 4: 6400 };
     var COST_TO_TIER = { 800: 1, 1600: 2, 3200: 3, 6400: 4 };
+    /** Last full catalog from RandomShopScanCatalog (for pick-by-index apply). */
+    var _lastCatalog = [];
+    var MAX_CATALOG_ITEMS = 80;
+
+    /** Last emitted owned class_name signature (change-detection for overlay). */
+    var _lastOwnedSig = '';
+    /** True after we once saw a real inventory snapshot (avoids empty wipe on boot). */
+    var _ownedScanReady = false;
+    var OWNED_SCAN_SEC = 2.0;
 
     // Suppresses the native-tab watcher while we CitadelSelectShopTab to populate #ShopModsFiltered.
     var _suppressDeactivation = false;
@@ -502,24 +516,65 @@
         $.Msg('[RandomShop] #ShopModsFiltered children=' + n + ' sample=' + (bits.join(' | ') || '(none)'));
     }
 
-    function resolveOwnModClass(shopMod) {
-        if (!shopMod || !shopMod.IsValid()) return '';
+    /** Match ALL_MOD_CLASSES base, optionally with a trailing digit suffix (bulletShield1). */
+    function matchKnownModClassToken(token) {
+        if (!token) return '';
+        var ci;
+        var best = '';
+        for (ci = 0; ci < ALL_MOD_CLASSES.length; ci++) {
+            var base = ALL_MOD_CLASSES[ci];
+            if (token === base) {
+                if (token.length >= best.length) best = token;
+                continue;
+            }
+            if (token.indexOf(base) === 0) {
+                var rest = token.substring(base.length);
+                if (/^\d+$/.test(rest) && token.length > best.length) best = token;
+            }
+        }
+        return best;
+    }
+
+    /** Prefer the most specific class token on a panel (digit suffix beats base id). */
+    function bestModClassFromPanel(panel) {
+        if (!panel || !panel.IsValid()) return '';
+        var best = '';
+        try {
+            if (typeof panel.GetClasses === 'function') {
+                var raw = String(panel.GetClasses() || '');
+                var parts = raw.split(/\s+/);
+                var pi;
+                for (pi = 0; pi < parts.length; pi++) {
+                    var hit = matchKnownModClassToken(parts[pi]);
+                    if (hit && hit.length > best.length) best = hit;
+                }
+            }
+        } catch (eGet) {}
+        if (best) return best;
         var ci;
         for (ci = 0; ci < ALL_MOD_CLASSES.length; ci++) {
             var cls = ALL_MOD_CLASSES[ci];
             try {
-                if (typeof shopMod.BHasClass === 'function' && shopMod.BHasClass(cls)) return cls;
+                if (typeof panel.BHasClass === 'function' && panel.BHasClass(cls)) {
+                    if (cls.length >= best.length) best = cls;
+                }
             } catch (eHas) {}
         }
-        return '';
+        return best;
+    }
+
+    function resolveOwnModClass(shopMod) {
+        return bestModClassFromPanel(shopMod);
     }
 
     // Own class on the card wins. A descendant class counts only when that icon's
     // CitadelShopMod is this card — a nested mod is a different item.
+    // Prefer digit-suffixed tokens (bulletShield1) over the base id (bulletShield).
     function resolveModClass(shopMod) {
         var own = resolveOwnModClass(shopMod);
         if (own) return own;
         if (!shopMod || !shopMod.IsValid()) return '';
+        var best = '';
         var ci;
         for (ci = 0; ci < ALL_MOD_CLASSES.length; ci++) {
             var cls = ALL_MOD_CLASSES[ci];
@@ -535,10 +590,26 @@
                 if (!icon || !icon.IsValid()) continue;
                 var owner = nearestShopMod(icon);
                 if (owner && owner !== shopMod) continue;
-                return cls;
+                var specific = bestModClassFromPanel(icon) || cls;
+                if (specific.length > best.length) best = specific;
             }
         }
-        return '';
+        return best;
+    }
+
+    /** True if panel carries the same item class family as wantCls (incl. digit suffix). */
+    function panelSharesItemClass(panel, wantCls) {
+        if (!panel || !panel.IsValid() || !wantCls) return false;
+        try {
+            if (typeof panel.BHasClass === 'function' && panel.BHasClass(wantCls)) return true;
+        } catch (eHas) {}
+        var onPanel = bestModClassFromPanel(panel);
+        if (!onPanel) return false;
+        if (onPanel === wantCls) return true;
+        // Same base family only when wantCls itself has no digit suffix mismatch.
+        var baseWant = wantCls.replace(/\d+$/, '');
+        var basePanel = onPanel.replace(/\d+$/, '');
+        return baseWant === basePanel && onPanel === wantCls;
     }
 
     function shopModId(shopMod) {
@@ -592,6 +663,192 @@
             if (shopMod.BHasClass('disabledFromPurchasing')) return false;
         } catch (e) {}
         return true;
+    }
+
+    /**
+     * Owned / usedAsComponent for THIS card only.
+     * Do not treat recipe-component checkmarks (owned on a child with a different
+     * item class) as "this catalog card is purchased" — that flooded shop_owned
+     * with dozens of false classes.
+     */
+    function isShopModOwned(shopMod) {
+        if (!shopMod || !shopMod.IsValid()) return false;
+        try {
+            if (shopMod.BHasClass('owned')) return true;
+            if (shopMod.BHasClass('usedAsComponent')) return true;
+        } catch (e) {}
+        // Class on the CitadelShopMod root only — never infer from component children.
+        var ownCls = resolveOwnModClass(shopMod);
+        if (!ownCls) return false;
+        try {
+            if (typeof shopMod.FindChildrenWithClassTraverse !== 'function') return false;
+            var marks = [];
+            var ownedKids = shopMod.FindChildrenWithClassTraverse('owned') || [];
+            var compKids = shopMod.FindChildrenWithClassTraverse('usedAsComponent') || [];
+            var oi;
+            for (oi = 0; oi < ownedKids.length; oi++) marks.push(ownedKids[oi]);
+            for (oi = 0; oi < compKids.length; oi++) marks.push(compKids[oi]);
+            for (oi = 0; oi < marks.length; oi++) {
+                var mark = marks[oi];
+                if (!mark || !mark.IsValid()) continue;
+                var owner = nearestShopMod(mark);
+                if (owner && owner !== shopMod) continue;
+                // Only the card's own icon chrome — not a nested component pip.
+                if (panelSharesItemClass(mark, ownCls)) return true;
+            }
+        } catch (eKids) {}
+        return false;
+    }
+
+    function categoryForOwnedMod(shopMod, cls) {
+        var fromCard = categoryFromShopMod(shopMod);
+        if (fromCard) return LIST_TO_CATEGORY[fromCard] || fromCard;
+        if (cls && CLASS_LIST_ID[cls]) return LIST_TO_CATEGORY[CLASS_LIST_ID[cls]] || '';
+        return '';
+    }
+
+    /**
+     * @param requireOwnedMark when false (SelectedBuild), every card is equipped = owned.
+     *   Catalog grids still need the `owned` / `usedAsComponent` mark.
+     */
+    function pushOwnedFromTree(listRoot, entries, seen, requireOwnedMark) {
+        if (!listRoot || !listRoot.IsValid()) return 0;
+        var mods = [];
+        findShopModPanels(listRoot, mods, 0);
+        var mi;
+        for (mi = 0; mi < mods.length; mi++) {
+            var shopMod = mods[mi];
+            if (requireOwnedMark && !isShopModOwned(shopMod)) continue;
+            // Owned identity = class on the card root only (never a recipe component).
+            var cls = resolveOwnModClass(shopMod);
+            if (!cls || cls.indexOf('rs_') === 0) continue;
+            if (seen[cls]) continue;
+            seen[cls] = true;
+            entries.push({ cls: cls, category: categoryForOwnedMod(shopMod, cls) });
+        }
+        return mods.length;
+    }
+
+    /** Equipped build is at most a handful of slots; more ⇒ UI junk / wrong tree. */
+    var MAX_BUILD_OWNED_WITHOUT_MARK = 16;
+
+    /**
+     * Inventory snapshot without switching tabs / touching layout.
+     * Primary: #ShopModsSelectedBuild (equipped — still in DOM under Random, just opacity 0).
+     * Secondary: #ShopModsFiltered when a native shop tab is visible (unequipped owned).
+     * No whole-shop "owned mark" crawl — that picked up component pips on every card.
+     */
+    function scanOwnedEntries() {
+        var entries = [];
+        var seen = {};
+        var root = $.GetContextPanel();
+        var modCount = 0;
+        var build = null;
+        try { build = root.FindChildTraverse('ShopModsSelectedBuild'); } catch (eB) {}
+        // Build panel = equipped inventory; usually no CSS `owned` on the card.
+        // If the tree is huge (wrong panel / pooled junk), require the owned mark.
+        var buildProbe = [];
+        var buildSeen = {};
+        var buildMods = pushOwnedFromTree(build, buildProbe, buildSeen, false);
+        modCount += buildMods;
+        if (buildProbe.length > 0 && buildProbe.length <= MAX_BUILD_OWNED_WITHOUT_MARK) {
+            var bi;
+            for (bi = 0; bi < buildProbe.length; bi++) {
+                if (seen[buildProbe[bi].cls]) continue;
+                seen[buildProbe[bi].cls] = true;
+                entries.push(buildProbe[bi]);
+            }
+        } else if (buildProbe.length > MAX_BUILD_OWNED_WITHOUT_MARK) {
+            $.Msg('[RandomShop] owned build scan too large (' + buildProbe.length + ') — require owned mark');
+            modCount += pushOwnedFromTree(build, entries, seen, true);
+        }
+
+        var onRandom = false;
+        try { onRandom = !!(root && root.BHasClass('gShowingRandom')); } catch (eR) {}
+        if (!onRandom) {
+            modCount += pushOwnedFromTree(getFilteredList(), entries, seen, true);
+        }
+
+        if (modCount > 0 || entries.length > 0) _ownedScanReady = true;
+        entries.sort(function (a, b) { return a.cls < b.cls ? -1 : a.cls > b.cls ? 1 : 0; });
+        return entries;
+    }
+
+    function emitShopOwned(scope, category, entries) {
+        var classes = [];
+        var classCategories = {};
+        var i;
+        for (i = 0; i < (entries || []).length; i++) {
+            var e = entries[i];
+            var cls = typeof e === 'string' ? e : (e && e.cls) || '';
+            if (!cls) continue;
+            classes.push(cls);
+            var cat = typeof e === 'string' ? (category || '') : ((e && e.category) || category || '');
+            if (cat) classCategories[cls] = cat;
+        }
+        var payload = {
+            scope: scope || 'all',
+            category: category || '',
+            classes: classes,
+            classCategories: classCategories
+        };
+        var sig = payload.scope + '|' + payload.category + '|' + classes.join(',');
+        if (sig === _lastOwnedSig) return;
+        _lastOwnedSig = sig;
+        var hooked = false;
+        try {
+            if (typeof globalThis !== 'undefined' && typeof globalThis.__twitch_bridge_on_shop_owned === 'function') {
+                globalThis.__twitch_bridge_on_shop_owned(payload);
+                hooked = true;
+            }
+        } catch (eHook) {}
+        // Fallback if shop-bridge hooks are not registered yet — still reach console.log tail.
+        if (!hooked) {
+            try {
+                $.Msg('[twitch_bridge] EVENT ' + JSON.stringify({
+                    v: 1,
+                    id: 'owned_' + Date.now(),
+                    tsMs: Date.now(),
+                    type: 'shop_owned',
+                    payload: payload
+                }) + '\n');
+            } catch (eMsg) {}
+        }
+    }
+
+    function pushOwnedClassImmediate(cls, listId) {
+        if (!cls || cls.indexOf('rs_') === 0) return;
+        var cat = LIST_TO_CATEGORY[listId] || '';
+        if (!cat) {
+            try { cat = LIST_TO_CATEGORY[CLASS_LIST_ID[cls]] || ''; } catch (eCat) {}
+        }
+        if (isShopUiOpen()) {
+            var scanned = scanOwnedEntries();
+            var has = false;
+            var i;
+            for (i = 0; i < scanned.length; i++) {
+                if (scanned[i].cls === cls) { has = true; break; }
+            }
+            if (!has) scanned.push({ cls: cls, category: cat });
+            scanned.sort(function (a, b) { return a.cls < b.cls ? -1 : a.cls > b.cls ? 1 : 0; });
+            _ownedScanReady = true;
+            emitShopOwned('all', '', scanned);
+            return;
+        }
+        // Shop closed: merge-add only (never replace inventory with one cls).
+        emitShopOwned('add', cat, [{ cls: cls, category: cat }]);
+    }
+
+    function watchOwnedInventory() {
+        if (isShopUiOpen()) {
+            var entries = scanOwnedEntries();
+            // Full replace from build/catalog. Skip empty until the DOM has been ready once
+            // so a late SelectedBuild populate does not wipe a purchase-time `add`.
+            if (entries.length > 0 || _ownedScanReady) {
+                emitShopOwned('all', '', entries);
+            }
+        }
+        $.Schedule(OWNED_SCAN_SEC, watchOwnedInventory);
     }
 
     var ITEM_TYPE_ATTRS = ['ItemType', 'item_type', 'upgrade_type', 'item_id', 'shopmod_type', 'component_type', 'upgradeid'];
@@ -673,6 +930,18 @@
             } catch (e) {}
         }
         return LIST_IDS[0];
+    }
+
+    /** Category list id when a weapon/vitality/spirit tab is active; '' on All Items / other. */
+    function currentCategoryListId() {
+        var root = $.GetContextPanel();
+        var i;
+        for (i = 0; i < LIST_IDS.length; i++) {
+            try {
+                if (root.BHasClass(LIST_TO_SHOWING[LIST_IDS[i]])) return LIST_IDS[i];
+            } catch (e) {}
+        }
+        return '';
     }
 
     function filteredListSignature(list) {
@@ -1484,6 +1753,9 @@
                 globalThis.__twitch_bridge_on_shop_purchase(purchasePayload);
             }
         } catch (eHook) {}
+        if (wasPurchased && purchasePayload.cls) {
+            pushOwnedClassImmediate(purchasePayload.cls, purchasePayload.listId);
+        }
         clearRolledHighlight();
         clearPendingRoll();
         state.itemClass = ''; state.itemTier = 0; state.itemListId = ''; state.itemType = 0; state.itemPanelId = '';
@@ -1872,7 +2144,37 @@
         startPurchaseMachine();
     }
 
-    function doAutoPurchase(tierNum, seq, precollected) {
+    function pickFromPool(items, pickIndex, pickCls) {
+        if (!items || !items.length) return null;
+        var wantCls = pickCls || '';
+        if (wantCls === '0' || wantCls === '-') wantCls = '';
+        if (wantCls) {
+            var ci;
+            for (ci = 0; ci < items.length; ci++) {
+                if (items[ci].cls === wantCls) return items[ci];
+            }
+            $.Msg('[RandomShop] pickCls=' + wantCls + ' not in filtered pool — falling back');
+        }
+        if (typeof pickIndex === 'number' && pickIndex >= 0 && _lastCatalog[pickIndex]) {
+            var want = _lastCatalog[pickIndex];
+            var i;
+            for (i = 0; i < items.length; i++) {
+                if (want.panelId && items[i].panelId && items[i].panelId === want.panelId) {
+                    return items[i];
+                }
+                if (want.cls && items[i].cls === want.cls && items[i].listId === want.listId) {
+                    return items[i];
+                }
+                if (want.type && items[i].type && items[i].type === want.type && items[i].listId === want.listId) {
+                    return items[i];
+                }
+            }
+            $.Msg('[RandomShop] pickIndex=' + pickIndex + ' not in filtered pool — falling back to random');
+        }
+        return items[Math.floor(Math.random() * items.length)];
+    }
+
+    function doAutoPurchase(tierNum, seq, precollected, pickIndex, pickCls) {
         var root = $.GetContextPanel();
         var msg  = root.FindChildTraverse('RSNoItemsMsg');
         var cost = getTierCost(tierNum);
@@ -1898,19 +2200,81 @@
             return false;
         }
         if (msg) msg.text = '';
-        var picked = items[Math.floor(Math.random() * items.length)];
+        var picked = pickFromPool(items, pickIndex, pickCls);
+        if (!picked) {
+            emitShopError({ reason: 'no_items', tier: tierNum, seq: seq || 0 });
+            return false;
+        }
         finishSuccessfulRoll(picked, tierNum, seq);
         return true;
     }
 
     /**
+     * Scan buyable cards across enabled categories/tiers for Extension item vote.
+     * onDone(compactItems) where each entry is {index,name,category,tier,cls}.
+     */
+    function RandomShopScanCatalog(seq, onDone) {
+        var done = typeof onDone === 'function' ? onDone : function () {};
+        ActivateRandomTab();
+        collectFullBuyableCatalog(function (raw) {
+            _lastCatalog = raw || [];
+            var compact = [];
+            var i;
+            for (i = 0; i < _lastCatalog.length && compact.length < MAX_CATALOG_ITEMS; i++) {
+                var it = _lastCatalog[i];
+                compact.push({
+                    index: compact.length,
+                    name: getItemName(it.cls, it.listId) || it.cls || ('Item ' + i),
+                    category: LIST_TO_CATEGORY[it.listId] || 'weapon',
+                    tier: it.tier || 1,
+                    cls: it.cls || ''
+                });
+            }
+            $.Msg('[RandomShop] catalog scan seq=' + (seq || 0) + ' items=' + compact.length);
+            done(compact);
+        });
+    }
+
+    /** Walk All Items / tabs and collect buyable cards for enabled lists + tiers 1–4. */
+    function collectFullBuyableCatalog(onDone) {
+        var acc = [];
+        var tiers = [1, 2, 3, 4];
+        var ti = 0;
+        function nextTier() {
+            if (ti >= tiers.length) {
+                onDone(acc);
+                return;
+            }
+            var tierNum = tiers[ti++];
+            collectItemsForTierAcrossCategories(tierNum, function (items) {
+                var i;
+                for (i = 0; i < (items || []).length; i++) {
+                    var it = items[i];
+                    if (!_enabledLists[it.listId]) continue;
+                    it.tier = tierNum;
+                    acc.push(it);
+                    if (acc.length >= MAX_CATALOG_ITEMS) {
+                        onDone(acc);
+                        return;
+                    }
+                }
+                $.Schedule(0.05, nextTier);
+            });
+        }
+        nextTier();
+    }
+
+    /**
      * Force a roll for vote/bridge. Cancels stale rolled state first.
-     * opts: { seq?: number, force?: boolean }
+     * opts: { seq?: number, force?: boolean, pickIndex?: number, pickCls?: string }
      * Returns true if roll was started (async populate); false if rejected immediately.
      */
     function RandomShopForceRoll(tierNum, opts) {
         opts = opts || {};
         var seq = opts.seq || 0;
+        var pickIndex = typeof opts.pickIndex === 'number' ? opts.pickIndex : -1;
+        var pickCls = opts.pickCls ? String(opts.pickCls) : '';
+        if (pickCls === '0' || pickCls === '-') pickCls = '';
         if (state.mode === 'rolled' && opts.force !== false) {
             RandomShopCancelRoll('force_new_seq');
         }
@@ -1920,7 +2284,7 @@
         }
         ActivateRandomTab();
         loadAllItemsThenRoll(tierNum, function (t, items) {
-            doAutoPurchase(t, seq, items);
+            doAutoPurchase(t, seq, items, pickIndex, pickCls);
         });
         return true;
     }
@@ -1953,6 +2317,7 @@
     var ctx = $.GetContextPanel();
     ctx.RandomShopRollTier       = RandomShopRollTier;
     ctx.RandomShopForceRoll      = RandomShopForceRoll;
+    ctx.RandomShopScanCatalog    = RandomShopScanCatalog;
     ctx.RandomShopCancelRoll     = RandomShopCancelRoll;
     ctx.RandomShopBuyItem        = RandomShopBuyItem;
     ctx.ActivateRandomTab        = ActivateRandomTab;
@@ -2002,6 +2367,7 @@
     watchReplacementDialog();
     watchNativeTabActivation();
     watchShopOpen();
+    watchOwnedInventory();
     // Script/HUD may reboot after a roll while shop was closed — restore immediately.
     tryRestorePendingRoll('boot');
 

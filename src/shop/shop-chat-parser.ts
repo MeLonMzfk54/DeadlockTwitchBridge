@@ -139,5 +139,14 @@ export function parseShopChatVote(
     // Prefer category if only one string is needed; callers should use parseShopChatVotes.
     return multi?.category ?? multi?.tier ?? null;
   }
+  if (stage === "voting_items") {
+    const raw = text.trim().toLowerCase();
+    if (options.requireBangPrefix && !raw.startsWith("!")) return null;
+    const stripped = raw.replace(/^!+/, "");
+    if (/^item[:\s#_-]*\d+$/.test(stripped) || /^\d+$/.test(stripped)) {
+      return stripped.startsWith("item") ? stripped : `item:${stripped}`;
+    }
+    return null;
+  }
   return null;
 }

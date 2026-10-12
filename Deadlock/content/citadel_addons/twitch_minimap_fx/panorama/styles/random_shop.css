@@ -79,6 +79,8 @@
 	hittest: false;
 }
 
+/* Stay laid out while the shop is open so #RSVoteNetHost can decode PNG (votes).
+   Chrome stays collapsed until .gShowingRandom — catalog stays clickable (hittest false). */
 #RandomShopContent
 {
 	ignore-parent-flow: true;
@@ -88,11 +90,23 @@
 	z-index: 50;
 	flow-children: down;
 	padding: 4px 10px 4px 10px;
-	opacity: 0;
+	opacity: 1;
 	hittest: false;
 	overflow: noclip;
-	transition-property: opacity;
+	background-color: none;
+	transition-property: opacity, background-color;
 	transition-duration: 0.21s;
+}
+
+.CitadelHudHeroShop:not(.gShowingRandom) #RandomShopContent > .RSTitle,
+.CitadelHudHeroShop:not(.gShowingRandom) #RandomShopContent > .RSSubtitle,
+.CitadelHudHeroShop:not(.gShowingRandom) #RandomShopContent > #RSVoteStartBtn,
+.CitadelHudHeroShop:not(.gShowingRandom) #RandomShopContent > #RSRolledView,
+.CitadelHudHeroShop:not(.gShowingRandom) #RandomShopContent > #RSCategoryFilter,
+.CitadelHudHeroShop:not(.gShowingRandom) #RandomShopContent > #RSTierButtons,
+.CitadelHudHeroShop:not(.gShowingRandom) #RandomShopContent > #RSNoItemsMsg
+{
+	visibility: collapse;
 }
 
 .gShowingRandom #RandomShopContent

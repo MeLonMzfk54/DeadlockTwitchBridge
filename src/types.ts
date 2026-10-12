@@ -21,6 +21,12 @@ export interface AppConfig {
   vconsoleReconnectMs: number;
   httpHost: string;
   httpPort: number;
+  /** Twitch Extension client id (often same as app client id). */
+  twitchExtensionClientId: string;
+  /** Extension shared secret (base64) from Extension Settings → Secret Keys. */
+  twitchExtensionSecret: string;
+  /** Extension owner Twitch user id (numeric string) for EBS JWT signing. */
+  twitchExtensionOwnerId: string;
   testMode: boolean;
   allowCheatEffects: boolean;
   allowDestructiveEffects: boolean;
@@ -99,7 +105,7 @@ export interface ShopVoteStatus {
   winnerCategory: string | null;
   winnerTier: number | null;
   lastSeq: number;
-  lastCfg: { seq: number; cat: number; tier: number } | null;
+  lastCfg: { seq: number; cat: number; tier: number; pick?: number; cls?: string } | null;
   pending: boolean;
   cmdReceived: boolean;
   hero: string;
@@ -119,6 +125,17 @@ export interface ShopVoteStatus {
   /** @deprecated Alias of autoStartIntervalMaxMs. */
   restartDelayMs: number;
   recentVotes: { option: string; userId: string | null; at: number }[];
+  catalogSeq?: number;
+  catalogItems?: {
+    index: number;
+    name: string;
+    category: string;
+    tier: number;
+    cls: string;
+  }[];
+  itemTally?: number[];
+  itemPct?: number[];
+  winnerItemIndex?: number | null;
   settings?: {
     autoStart: boolean;
     mockBotEnabled: boolean;
@@ -126,7 +143,7 @@ export interface ShopVoteStatus {
     tierDurationMs: number;
     autoStartIntervalMinMs: number;
     autoStartIntervalMaxMs: number;
-    defaultStartMode: "full" | "category" | "tier";
+    defaultStartMode: "full" | "category" | "tier" | "items";
     enabledCategories: string[];
     minTier: number;
     maxTier: number;
@@ -135,6 +152,9 @@ export interface ShopVoteStatus {
     mockBotIntervalMs: number;
     overlayHoldMs: number;
     chatAnnounceCombined?: string;
+    chatAnnounceItems?: string;
+    itemDurationMs?: number;
+    itemWinnerMode?: "random_among_voted" | "plurality";
   };
 }
 

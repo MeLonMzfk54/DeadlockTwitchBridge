@@ -81,6 +81,9 @@ function fakeSnap(partial: Partial<ShopVoteSnapshot>): ShopVoteSnapshot {
       chatAnnounceCategory: "",
       chatAnnounceTier: "",
       chatAnnounceCombined: "",
+      chatAnnounceItems: "",
+      itemDurationMs: 25_000,
+      itemWinnerMode: "random_among_voted",
     },
     ...partial,
   };
@@ -279,6 +282,7 @@ test("tierPctFromSlots and parseHudSlot", () => {
   assert.equal(parseHudSlot("cats"), "cats");
   assert.equal(parseHudSlot("cmd"), "cmd");
   assert.equal(parseHudSlot("banner"), "banner");
+  assert.equal(parseHudSlot("help"), null);
   assert.equal(parseHudSlot("nope"), null);
   assert.equal(timerSecondsFromSnapshot({ stageEndsAt: null }), 0);
 });
@@ -288,7 +292,7 @@ test("cmd slot encodes pending apply as seq + cat*10+tier", () => {
   const snap = fakeSnap({
     stage: "applying",
     lastSeq: 42,
-    lastCfg: { seq: 42, cat: 3, tier: 2 },
+    lastCfg: { seq: 42, cat: 3, tier: 2, pick: 0, cls: "" },
     pending: true,
     winnerCategory: "spirit",
     winnerTier: 2,
@@ -309,7 +313,7 @@ test("cmd slot encodes skip as h=0 with bumped seq", () => {
   const snap = fakeSnap({
     stage: "idle",
     lastSeq: 7,
-    lastCfg: { seq: 7, cat: 0, tier: 0 },
+    lastCfg: { seq: 7, cat: 0, tier: 0, pick: 0, cls: "" },
     pending: false,
   });
   const levels = levelsForSlot(snap, "cmd");

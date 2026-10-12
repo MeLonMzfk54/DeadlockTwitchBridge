@@ -1,0 +1,32 @@
+---
+description: Twitch shop-ext overlay/panel — browse + items vote via Assets API class_name
+globs: extensions/shop-ext/**/*,src/shop/**/*,src/extensions/ext-shop-state.ts,src/server/http-server.ts
+alwaysApply: false
+---
+
+# Shop Extension (panel + overlay)
+
+Canonical package: `extensions/shop-ext/`. Not `shop-panel` / `shop-overlay` (legacy copies).
+
+## Overlay click model
+
+- Cards always from Deadlock Assets API (`api.deadlock-api.com`), not from a match catalog scan.
+- Outside `voting_items`, cards are browse-only (no suggest / help ping).
+- **`voting_items` click**: `POST /api/ext/shop/vote` with `option: "class:<ClassName>"` plus `category`, `tier`, `name`. Do not use scan indexes (`item:N`) as the primary path.
+- Do not show “Loading items…” / “Waiting for streamer shop catalog…” for item vote — bridge starts `voting_items` immediately.
+- **Owned cards**: `ownedClasses` from bridge event `shop_owned` (not PNG). Mod reads `#ShopModsSelectedBuild` (equipped) + catalog `owned`/`usedAsComponent` marks — no tab switches. Bridge maps Panorama CSS ids (incl. digit suffixes like `bulletShield1`) to Assets API `class_name` via `panorama-owned-map.ts` — overlay matches exact API names only (no blind camelCase→`upgrade_`). Greys cards, disables click; reject `item already owned`.
+
+## Bridge items vote
+
+- Start mode `items` → stage `voting_items` (no `awaiting_catalog`).
+- Tally grows as viewers vote; winner `random_among_voted` (or settings `itemWinnerMode`).
+- No votes → fail `no_items`. Apply winner with PNG `cmd` + cfg `bridge_shop_cls` (see `mod-data-transfer.mdc`).
+
+## Panel
+
+- Compact status/timer; item list is overlay-first.
+- If panel lists voted items, cast with `class:` + meta when `cls` is present.
+
+## Channels reminder
+
+Game HUD still uses PNG only (`mod-data-transfer.mdc`). Extension surfaces use normal HTTPS to the bridge EBS.

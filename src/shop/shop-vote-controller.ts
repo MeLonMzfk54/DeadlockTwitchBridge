@@ -7,15 +7,20 @@ import {
   enabledTiersFromSettings,
   mergeShopVoteSettings,
   randomAutoStartDelayMs,
+  type ShopItemWinnerMode,
   type ShopStartMode,
   type ShopVoteSettings,
 } from "./shop-vote-settings.js";
+import { sanitizeHelpClassName } from "./shop-help.js";
+import { toOwnedApiClassName } from "./panorama-owned-map.js";
 
 export type ShopVoteStage =
   | "idle"
   | "voting_category"
   | "voting_tier"
   | "voting_combined"
+  | "awaiting_catalog"
+  | "voting_items"
   | "applying"
   | "rolled"
   | "waiting_shop"
@@ -24,7 +29,20 @@ export type ShopVoteStage =
 
 /** Stages where chat/control may cast votes. */
 export function isShopVotingStage(stage: ShopVoteStage | string): boolean {
-  return stage === "voting_category" || stage === "voting_tier" || stage === "voting_combined";
+  return (
+    stage === "voting_category" ||
+    stage === "voting_tier" ||
+    stage === "voting_combined" ||
+    stage === "voting_items"
+  );
+}
+
+export interface ShopCatalogItem {
+  index: number;
+  name: string;
+  category: ShopCategory;
+  tier: ShopTier;
+  cls: string;
 }
 
 export type ShopCategory = "weapon" | "vitality" | "spirit";
@@ -139,7 +157,7 @@ export interface ShopVoteSnapshot {
   winnerCategory: ShopCategory | null;
   winnerTier: ShopTier | null;
   lastSeq: number;
-  lastCfg: { seq: number; cat: number; tier: number } | null;
+  lastCfg: { seq: number; cat: number; tier: number; pick: number; cls: string } | null;
   pending: boolean;
   cmdReceived: boolean;
   hero: string;
@@ -167,12 +185,34 @@ export interface ShopVoteSnapshot {
   bannerKind: number;
   /** Winner pack cat*10+tier, or 0. */
   bannerWin: number;
+  /**
+   * Items that received at least one vote this round (built from overlay class votes).
+   * `catalogSeq` kept for Extension API compat; unused for scan.
+   */
+  catalogSeq: number;
+  catalogItems: ShopCatalogItem[];
+  itemTally: number[];
+  itemPct: number[];
+  winnerItemIndex: number | null;
+  /** Streamer-owned (or used-as-component) class_names for overlay greying. */
+  ownedClasses: string[];
+}
+
+/** Optional meta when casting `class:<ClassName>` (first vote registers the item). */
+export interface ShopCastMeta {
+  category?: string | null;
+  tier?: number | string | null;
+  name?: string | null;
 }
 
 export interface ShopCmdPayload {
   seq: number;
   cat: number;
   tier: number;
+  /** 1-based catalog index; 0 = random roll within cat/tier (or class pick). */
+  pick: number;
+  /** Item class_name for apply; empty = random / pick-index path. */
+  cls: string;
   pending: boolean;
   stage: ShopVoteStage;
   categoryPct: Record<ShopCategory, number>;
@@ -229,6 +269,58 @@ export function tallyPercents<T extends string>(
   return result;
 }
 
+function itemTallyPercents(tally: number[]): number[] {
+  if (tally.length === 0) return [];
+  const keys = tally.map((_, i) => String(i));
+  const rec: Record<string, number> = {};
+  for (let i = 0; i < tally.length; i++) rec[String(i)] = tally[i] ?? 0;
+  const pct = tallyPercents(rec, keys);
+  return keys.map((k) => pct[k] ?? 0);
+}
+
+function pickWeightedIndex(tally: number[], random: () => number = Math.random): number {
+  if (tally.length === 0) return 0;
+  let max = -1;
+  const tied: number[] = [];
+  for (let i = 0; i < tally.length; i++) {
+    const n = tally[i] ?? 0;
+    if (n > max) {
+      max = n;
+      tied.length = 0;
+      tied.push(i);
+    } else if (n === max) {
+      tied.push(i);
+    }
+  }
+  if (tied.length === 0) return 0;
+  if (max <= 0) return Math.floor(random() * tally.length);
+  return tied[Math.floor(random() * tied.length)];
+}
+
+/**
+ * Choose the winning catalog index for an items vote.
+ * - `random_among_voted`: uniform among tally > 0; empty tally → uniform over catalog
+ * - `plurality`: highest tally (ties random); empty tally → uniform over catalog
+ */
+export function pickItemWinnerIndex(
+  tally: number[],
+  mode: ShopItemWinnerMode = "random_among_voted",
+  random: () => number = Math.random,
+): number {
+  if (tally.length === 0) return 0;
+  if (mode === "plurality") {
+    return pickWeightedIndex(tally, random);
+  }
+  const voted: number[] = [];
+  for (let i = 0; i < tally.length; i++) {
+    if ((tally[i] ?? 0) > 0) voted.push(i);
+  }
+  if (voted.length === 0) {
+    return Math.floor(random() * tally.length);
+  }
+  return voted[Math.floor(random() * voted.length)]!;
+}
+
 function pickWeightedWinner<T extends string>(tally: Record<T, number>, options: T[]): T {
   let max = -1;
   const tied: T[] = [];
@@ -247,12 +339,14 @@ function pickWeightedWinner<T extends string>(tally: Record<T, number>, options:
   return tied[Math.floor(Math.random() * tied.length)];
 }
 
+const MAX_CATALOG_ITEMS = 80;
+
 export class ShopVoteController extends EventEmitter<{
   update: [ShopVoteSnapshot];
   /** Fired when a real voting stage begins (not when skipped for a single option). */
   vote_stage_start: [
     {
-      stage: "voting_category" | "voting_tier" | "voting_combined";
+      stage: "voting_category" | "voting_tier" | "voting_combined" | "voting_items";
       snapshot: ShopVoteSnapshot;
     },
   ];
@@ -274,7 +368,8 @@ export class ShopVoteController extends EventEmitter<{
   private bannerCycleOpen = false;
   /** Stage/end captured at start(), so a same-stage restart can refire the banner. */
   private bannerRestart: { stage: ShopVoteStage; endsAt: number | null } | null = null;
-  private lastCfg: { seq: number; cat: number; tier: number } | null = null;
+  private lastCfg: { seq: number; cat: number; tier: number; pick: number; cls: string } | null =
+    null;
   private cmdReceived = false;
   private lastRolled: Record<string, unknown> | null = null;
   private lastPurchase: Record<string, unknown> | null = null;
@@ -291,9 +386,16 @@ export class ShopVoteController extends EventEmitter<{
   private restartTimer: NodeJS.Timeout | null = null;
   private categoryVotes = new Map<string, ShopCategory>();
   private tierVotes = new Map<string, "1" | "2" | "3" | "4">();
+  private itemVotes = new Map<string, number>();
   private recentVotes: ShopRecentVote[] = [];
   /** Last known match phase from Panorama (empty until first phase event). */
   private matchPhase = "";
+  private catalogSeq = 0;
+  private catalogItems: ShopCatalogItem[] = [];
+  private itemTally: number[] = [];
+  private winnerItemIndex: number | null = null;
+  /** class_name → category (null when unknown / from full scan without tag). */
+  private ownedClassCats = new Map<string, ShopCategory | null>();
 
   private settings: ShopVoteSettings;
   private readonly mockBotVotesPerTick: number;
@@ -407,6 +509,7 @@ export class ShopVoteController extends EventEmitter<{
   getSnapshot(): ShopVoteSnapshot {
     const categoryPct = tallyPercents(this.categoryTally, SHOP_CATEGORIES);
     const tierPct = tallyPercents(this.tierTally, ["1", "2", "3", "4"] as const);
+    const itemPct = itemTallyPercents(this.itemTally);
     return {
       stage: this.stage,
       shopOpen: this.shopOpen,
@@ -442,6 +545,12 @@ export class ShopVoteController extends EventEmitter<{
       bannerSeq: this.lastBannerSeq,
       bannerKind: this.lastBannerKind,
       bannerWin: this.lastBannerWin,
+      catalogSeq: this.catalogSeq,
+      catalogItems: this.catalogItems.map((it) => ({ ...it })),
+      itemTally: [...this.itemTally],
+      itemPct,
+      winnerItemIndex: this.winnerItemIndex,
+      ownedClasses: [...this.ownedClassCats.keys()].sort(),
     };
   }
 
@@ -452,6 +561,8 @@ export class ShopVoteController extends EventEmitter<{
         seq: 0,
         cat: 0,
         tier: 0,
+        pick: 0,
+        cls: "",
         pending: false,
         stage: snap.stage,
         categoryPct: snap.categoryPct,
@@ -464,6 +575,8 @@ export class ShopVoteController extends EventEmitter<{
       seq: this.lastCfg.seq,
       cat: this.lastCfg.cat,
       tier: this.lastCfg.tier,
+      pick: this.lastCfg.pick,
+      cls: this.lastCfg.cls || "",
       pending: this.isPurchasePending(),
       stage: snap.stage,
       categoryPct: snap.categoryPct,
@@ -529,8 +642,15 @@ export class ShopVoteController extends EventEmitter<{
     this.lastWaiting = null;
     this.lastError = null;
     this.pipeline = [];
+    this.winnerItemIndex = null;
+    this.itemTally = [];
+    this.catalogItems = [];
 
-    if (mode === "tier") {
+    if (mode === "items") {
+      this.winnerCategory = null;
+      this.winnerTier = null;
+      this.beginItemsVote();
+    } else if (mode === "tier") {
       if (!this.winnerCategory || !this.isCategoryEnabled(this.winnerCategory)) {
         this.winnerCategory = this.enabledCategories()[0] ?? "weapon";
       }
@@ -590,12 +710,24 @@ export class ShopVoteController extends EventEmitter<{
   }
 
   /** Last-vote-wins when `userId` is set; anonymous casts (control panel) always increment. */
-  cast(option: string, userId?: string): ShopVoteSnapshot {
+  cast(option: string, userId?: string, meta?: ShopCastMeta): ShopVoteSnapshot {
     if (this.applyDelayResolve || this.applyDelayTimer) {
       return this.getSnapshot();
     }
     const normalized = option.trim().toLowerCase();
     const uid = typeof userId === "string" ? userId.trim() : "";
+
+    if (this.stage === "voting_items") {
+      const className = parseClassVoteOption(option);
+      if (className) {
+        return this.castItemByClass(className, uid, meta);
+      }
+      const itemIndex = parseItemVoteOption(normalized, this.catalogItems.length);
+      if (itemIndex == null) {
+        throw new Error(`Invalid item option: ${option}`);
+      }
+      return this.castItem(itemIndex, uid);
+    }
 
     if (this.stage === "voting_category" || this.stage === "voting_combined") {
       if (normalized === "weapon" || normalized === "vitality" || normalized === "spirit") {
@@ -626,6 +758,69 @@ export class ShopVoteController extends EventEmitter<{
       throw new Error(`Invalid combined option: ${option}`);
     }
     throw new Error(`Cannot cast vote in stage: ${this.stage}`);
+  }
+
+  private castItem(index: number, uid: string): ShopVoteSnapshot {
+    if (index < 0 || index >= this.catalogItems.length) {
+      return this.getSnapshot();
+    }
+    if (uid) {
+      const prev = this.itemVotes.get(uid);
+      if (prev === index) {
+        return this.getSnapshot();
+      }
+      if (prev != null && prev >= 0 && prev < this.itemTally.length) {
+        this.itemTally[prev] = Math.max(0, (this.itemTally[prev] ?? 0) - 1);
+      }
+      this.itemVotes.set(uid, index);
+    }
+    this.itemTally[index] = (this.itemTally[index] ?? 0) + 1;
+    const cls = this.catalogItems[index]?.cls;
+    this.recordRecentVote(cls ? `class:${cls}` : `item:${index}`, uid || null);
+    this.emitUpdate();
+    return this.getSnapshot();
+  }
+
+  /** True if cls matches an owned Assets API class_name (via explicit map). */
+  private isClassOwned(cls: string): boolean {
+    if (!cls || this.ownedClassCats.size === 0) return false;
+    if (this.ownedClassCats.has(cls)) return true;
+    const api = toOwnedApiClassName(cls);
+    return !!(api && this.ownedClassCats.has(api));
+  }
+
+  /** Normalize game/Panorama id → API class_name for ownedClasses. */
+  private normalizeOwnedClass(
+    cls: string,
+    category: ShopCategory | null,
+  ): string {
+    return toOwnedApiClassName(cls, category) ?? toOwnedApiClassName(cls) ?? cls;
+  }
+
+  /** Register overlay item on first vote, then tally by index. */
+  private castItemByClass(cls: string, uid: string, meta?: ShopCastMeta): ShopVoteSnapshot {
+    if (this.isClassOwned(cls)) {
+      throw new Error("item already owned");
+    }
+    let idx = this.catalogItems.findIndex((it) => it.cls === cls);
+    if (idx < 0) {
+      const category = parseShopCategory(meta?.category ?? null);
+      const tier = parseShopTier(meta?.tier ?? null);
+      if (!category || !tier) {
+        throw new Error("category and tier required for class vote");
+      }
+      if (this.catalogItems.length >= MAX_CATALOG_ITEMS) {
+        throw new Error("item catalog full");
+      }
+      const name = String(meta?.name ?? cls)
+        .trim()
+        .slice(0, 48) || cls;
+      idx = this.catalogItems.length;
+      this.catalogItems.push({ index: idx, name, category, tier, cls });
+      this.itemTally.push(0);
+      this.catalogSeq = this.catalogSeq >= SHOP_CMD_SEQ_MAX ? 1 : this.catalogSeq + 1;
+    }
+    return this.castItem(idx, uid);
   }
 
   private castCategory(normalized: ShopCategory, uid: string): ShopVoteSnapshot {
@@ -677,13 +872,107 @@ export class ShopVoteController extends EventEmitter<{
     this.tierTally = emptyTierTally();
     this.winnerCategory = category;
     this.winnerTier = tier;
-    await this.sendCfg(category, tier);
+    this.winnerItemIndex = null;
+    await this.sendCfg(category, tier, 0);
     return this.getSnapshot();
   }
 
   /** Explicit shop-open signal from Panorama (preferred over phase string). */
   setShopOpen(open: boolean, source = "api"): void {
     this.applyShopOpen(open, source);
+  }
+
+  /** Legacy game scan events are ignored — overlay votes register items by class_name. */
+  private handleShopCatalog(_payload: Record<string, unknown>): void {
+    this.push("ignored shop_catalog (overlay catalog)");
+  }
+
+  /**
+   * Inventory snapshot from open shop UI (owned / usedAsComponent cards).
+   * scope=all replaces; scope=category replaces that category; scope=add merges.
+   */
+  private handleShopOwned(payload: Record<string, unknown>): void {
+    const scopeRaw = String(payload.scope ?? "all").toLowerCase();
+    const scope =
+      scopeRaw === "category" || scopeRaw === "add" ? scopeRaw : "all";
+    const category = parseShopCategory(payload.category ?? null);
+    const classes = parseOwnedClassList(payload.classes);
+    const classCategories = parseOwnedClassCategories(payload.classCategories);
+
+    const before = this.ownedClassCats.size;
+    const beforeSig = [...this.ownedClassCats.keys()].sort().join(",");
+
+    if (scope === "all") {
+      this.ownedClassCats.clear();
+      for (const cls of classes) {
+        const hint = classCategories.get(cls) ?? null;
+        const cat = this.resolveOwnedCategory(cls, hint);
+        const api = this.normalizeOwnedClass(cls, cat);
+        this.ownedClassCats.set(api, cat);
+      }
+    } else if (scope === "category") {
+      if (!category) {
+        this.push("ignored shop_owned category (missing category)");
+        return;
+      }
+      for (const [cls, cat] of [...this.ownedClassCats.entries()]) {
+        if (cat === category) this.ownedClassCats.delete(cls);
+      }
+      for (const cls of classes) {
+        const api = this.normalizeOwnedClass(cls, category);
+        this.ownedClassCats.set(api, category);
+      }
+    } else {
+      // add — union; upgrade null category when we learn one
+      for (const cls of classes) {
+        const hint = classCategories.get(cls) ?? category;
+        const next = this.resolveOwnedCategory(cls, hint);
+        const api = this.normalizeOwnedClass(cls, next);
+        const prev = this.ownedClassCats.get(api);
+        if (prev === undefined || (prev == null && next != null)) {
+          this.ownedClassCats.set(api, next);
+        }
+      }
+    }
+
+    const afterNames = [...this.ownedClassCats.keys()].sort();
+    const afterSig = afterNames.join(",");
+    if (afterSig === beforeSig && this.ownedClassCats.size === before) {
+      return;
+    }
+    this.push(
+      `owned ${scope}${category ? `:${category}` : ""} → ${afterNames.join(", ") || "(none)"} (${afterNames.length})`,
+    );
+    this.emitUpdate();
+  }
+
+  private addOwnedClassFromPurchase(payload: Record<string, unknown>): void {
+    const cls = sanitizeHelpClassName(
+      typeof payload.cls === "string" ? payload.cls : null,
+    );
+    if (!cls) return;
+    const fromList = listIdToShopCategory(
+      typeof payload.listId === "string" ? payload.listId : null,
+    );
+    const cat =
+      fromList ||
+      parseShopCategory(payload.category ?? null) ||
+      this.resolveOwnedCategory(cls, null);
+    const api = this.normalizeOwnedClass(cls, cat);
+    if (!this.ownedClassCats.has(api) || this.ownedClassCats.get(api) == null) {
+      this.ownedClassCats.set(api, cat);
+    }
+  }
+
+  private resolveOwnedCategory(
+    cls: string,
+    hint: ShopCategory | null,
+  ): ShopCategory | null {
+    if (hint) return hint;
+    const fromCatalog = this.catalogItems.find((it) => it.cls === cls);
+    if (fromCatalog) return fromCatalog.category;
+    const prev = this.ownedClassCats.get(cls);
+    return prev ?? null;
   }
 
   /** HUD Start/Restart button → shop_vote_start event. */
@@ -890,6 +1179,55 @@ export class ShopVoteController extends EventEmitter<{
     await this.scheduleApply(this.winnerCategory, this.winnerTier);
   }
 
+  /** Open items vote immediately; overlay registers cards via class votes. */
+  private beginItemsVote(): void {
+    this.catalogItems = [];
+    this.itemVotes.clear();
+    this.itemTally = [];
+    this.winnerItemIndex = null;
+    const duration = this.settings.itemDurationMs || this.categoryDurationMs;
+    this.setStage("voting_items");
+    this.stageStartedAt = Date.now();
+    this.stageEndsAt = Date.now() + duration;
+    this.announceVoteStart(3);
+    this.push("voting items (overlay catalog)");
+    this.startMockBot();
+    this.stageTimer = setTimeout(() => {
+      void this.finishItemsVote();
+    }, duration);
+    this.emitUpdate();
+    this.emit("vote_stage_start", {
+      stage: "voting_items",
+      snapshot: this.getSnapshot(),
+    });
+  }
+
+  private async finishItemsVote(): Promise<void> {
+    this.stopMockBot();
+    const votedCount = this.itemTally.filter((n) => n > 0).length;
+    if (this.catalogItems.length === 0 || votedCount === 0) {
+      this.closeVoteBanner();
+      this.lastError = { reason: "no_items" };
+      this.setStage("failed");
+      this.stageEndsAt = null;
+      this.push("no item votes — failed");
+      this.emitUpdate();
+      this.scheduleAutoRestart();
+      return;
+    }
+    const mode = this.settings.itemWinnerMode ?? "random_among_voted";
+    const idx = pickItemWinnerIndex(this.itemTally, mode);
+    const item = this.catalogItems[idx];
+    this.winnerItemIndex = idx;
+    this.winnerCategory = item.category;
+    this.winnerTier = item.tier;
+    this.push(
+      `winner item=${idx} ${item.name} cls=${item.cls} (${item.category} T${item.tier}) mode=${mode} voted=${votedCount}`,
+    );
+    this.closeVoteBanner();
+    await this.scheduleApply(item.category, item.tier, 0, item.cls);
+  }
+
   private async finishCombinedVote(): Promise<void> {
     this.stopMockBot();
     const cats = this.enabledCategories();
@@ -912,10 +1250,15 @@ export class ShopVoteController extends EventEmitter<{
   private applyDelayGeneration = 0;
   private applyDelayResolve: (() => void) | null = null;
 
-  private async scheduleApply(category: ShopCategory, tier: ShopTier): Promise<void> {
+  private async scheduleApply(
+    category: ShopCategory,
+    tier: ShopTier,
+    pick = 0,
+    cls = "",
+  ): Promise<void> {
     const delay = this.settings.applyDelayMs;
     if (delay <= 0) {
-      await this.sendCfg(category, tier);
+      await this.sendCfg(category, tier, pick, cls);
       return;
     }
     this.clearApplyDelayTimer();
@@ -932,7 +1275,7 @@ export class ShopVoteController extends EventEmitter<{
       }, delay);
     });
     if (gen !== this.applyDelayGeneration) return;
-    await this.sendCfg(category, tier);
+    await this.sendCfg(category, tier, pick, cls);
   }
 
   private clearApplyDelayTimer(): void {
@@ -1009,21 +1352,34 @@ export class ShopVoteController extends EventEmitter<{
     this.publishBanner(4, win);
   }
 
-  private async sendCfg(category: ShopCategory, tier: ShopTier): Promise<void> {
+  private async sendCfg(
+    category: ShopCategory,
+    tier: ShopTier,
+    pick = 0,
+    cls = "",
+  ): Promise<void> {
     this.setStage("applying");
     this.stageEndsAt = null;
     const seq = this.bumpSeq();
     const cat = CATEGORY_TO_CV[category];
-    const cfg = { seq, cat, tier };
+    const safePick = Number.isFinite(pick) && pick > 0 ? Math.round(pick) : 0;
+    const safeCls = sanitizeHelpClassName(cls) || "";
+    const cfg = { seq, cat, tier, pick: safePick, cls: safeCls };
     this.lastCfg = cfg;
     this.cmdReceived = false;
     this.lastWaiting = null;
-    this.push(`pending seq=${cfg.seq} cat=${category} tier=${tier}`);
+    this.push(
+      `pending seq=${cfg.seq} cat=${category} tier=${tier}` +
+        (safePick > 0 ? ` pick=${safePick}` : "") +
+        (safeCls ? ` cls=${safeCls}` : ""),
+    );
     this.emitUpdate();
     try {
       await this.gameClient.sendCommands([
         `bridge_shop_cat ${cat}`,
         `bridge_shop_tier ${tier}`,
+        `bridge_shop_pick ${safePick}`,
+        `bridge_shop_cls ${safeCls || "0"}`,
         `bridge_shop_seq ${cfg.seq}`,
       ]);
       this.push("cfg backup sent");
@@ -1031,7 +1387,7 @@ export class ShopVoteController extends EventEmitter<{
       const message = error instanceof Error ? error.message : String(error);
       this.push(`cfg backup skipped: ${message}`);
     }
-    // PNG cmd slot is primary apply; cfg-bind remains backup.
+    // PNG cmd slot is primary apply; cfg-bind remains backup (cls/pick via convar).
     this.emitUpdate();
   }
 
@@ -1041,7 +1397,7 @@ export class ShopVoteController extends EventEmitter<{
    */
   private async sendSkipCfg(): Promise<void> {
     const seq = this.bumpSeq();
-    const cfg = { seq, cat: 0, tier: 0 };
+    const cfg = { seq, cat: 0, tier: 0, pick: 0, cls: "" };
     this.lastCfg = cfg;
     this.cmdReceived = false;
     this.push(`skip cfg seq=${cfg.seq} cat=0 tier=0`);
@@ -1050,6 +1406,8 @@ export class ShopVoteController extends EventEmitter<{
       await this.gameClient.sendCommands([
         "bridge_shop_cat 0",
         "bridge_shop_tier 0",
+        "bridge_shop_pick 0",
+        "bridge_shop_cls 0",
         `bridge_shop_seq ${cfg.seq}`,
       ]);
       this.push("skip cfg sent");
@@ -1093,6 +1451,8 @@ export class ShopVoteController extends EventEmitter<{
       await this.gameClient.sendCommands([
         `bridge_shop_cat ${cfg.cat}`,
         `bridge_shop_tier ${cfg.tier}`,
+        `bridge_shop_pick ${cfg.pick ?? 0}`,
+        `bridge_shop_cls ${cfg.cls || "0"}`,
         `bridge_shop_seq ${cfg.seq}`,
       ]);
       this.push("cfg resend sent");
@@ -1104,6 +1464,14 @@ export class ShopVoteController extends EventEmitter<{
   }
 
   private onGameEvent(evt: StoredGameEvent): void {
+    if (evt.type === "shop_catalog") {
+      this.handleShopCatalog(evt.payload);
+      return;
+    }
+    if (evt.type === "shop_owned") {
+      this.handleShopOwned(evt.payload);
+      return;
+    }
     if (evt.type === "shop_vote_start") {
       this.handleHudVoteStart();
       return;
@@ -1167,6 +1535,9 @@ export class ShopVoteController extends EventEmitter<{
       this.setStage(ok ? "purchased" : "failed");
       this.push(ok ? "purchase ok" : "purchase failed");
       this.stopMockBot();
+      if (ok) {
+        this.addOwnedClassFromPurchase(evt.payload);
+      }
       // Clear vote chrome after purchase/fail so leftover % / winner highlights do not stick.
       // Keep tallies through waiting_shop / rolled so a vote without buy still shows %.
       this.clearVoteResults();
@@ -1248,6 +1619,13 @@ export class ShopVoteController extends EventEmitter<{
     this.mockBotActive = true;
     this.mockTimer = setInterval(() => {
       let changed = false;
+      if (this.stage === "voting_items" && this.catalogItems.length > 0) {
+        const idx = Math.floor(Math.random() * this.catalogItems.length);
+        for (let i = 0; i < this.mockBotVotesPerTick; i++) {
+          this.itemTally[idx] = (this.itemTally[idx] ?? 0) + 1;
+        }
+        changed = true;
+      }
       if (this.stage === "voting_category" || this.stage === "voting_combined") {
         const cats = this.enabledCategories();
         if (cats.length > 1 || this.stage === "voting_category") {
@@ -1319,6 +1697,11 @@ export class ShopVoteController extends EventEmitter<{
 
     if (this.isMatchOutsidePhase(phase)) {
       this.clearRestartTimer();
+      if (this.ownedClassCats.size > 0) {
+        this.ownedClassCats.clear();
+        this.push(`match phase=${phase}; owned classes cleared`);
+        this.emitUpdate();
+      }
       this.push(`match phase=${phase}; auto-start cancelled`);
       return;
     }
@@ -1372,6 +1755,7 @@ export class ShopVoteController extends EventEmitter<{
   private clearUserVotes(): void {
     this.categoryVotes.clear();
     this.tierVotes.clear();
+    this.itemVotes.clear();
   }
 
   private clearVoteResults(): void {
@@ -1379,6 +1763,9 @@ export class ShopVoteController extends EventEmitter<{
     this.tierTally = emptyTierTally();
     this.winnerCategory = null;
     this.winnerTier = null;
+    this.winnerItemIndex = null;
+    this.itemTally = [];
+    this.catalogItems = [];
   }
 
   private isPurchasePending(): boolean {
@@ -1417,8 +1804,72 @@ export function parseShopCategory(value: unknown): ShopCategory | null {
   return null;
 }
 
+/** Map RandomShop listId / Panorama nav id → category. */
+export function listIdToShopCategory(listId: string | null | undefined): ShopCategory | null {
+  if (!listId) return null;
+  const v = listId.trim().toLowerCase();
+  if (v.includes("weapon")) return "weapon";
+  if (v.includes("armor") || v.includes("vital")) return "vitality";
+  if (v.includes("tech") || v.includes("spirit")) return "spirit";
+  return parseShopCategory(listId);
+}
+
+export function parseOwnedClassList(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const entry of raw) {
+    const cls = sanitizeHelpClassName(typeof entry === "string" ? entry : null);
+    if (!cls || seen.has(cls)) continue;
+    seen.add(cls);
+    out.push(cls);
+  }
+  return out;
+}
+
+export function parseOwnedClassCategories(
+  raw: unknown,
+): Map<string, ShopCategory> {
+  const out = new Map<string, ShopCategory>();
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const cls = sanitizeHelpClassName(key);
+    const cat = parseShopCategory(value);
+    if (cls && cat) out.set(cls, cat);
+  }
+  return out;
+}
+
 export function parseShopTier(value: unknown): ShopTier | null {
   const n = typeof value === "number" ? value : Number.parseInt(String(value ?? ""), 10);
   if (n === 1 || n === 2 || n === 3 || n === 4) return n;
   return null;
+}
+
+/** Accept `item:3`, `item:3` with bang, or bare index when catalogSize > 4. */
+export function parseItemVoteOption(text: string, catalogSize: number): number | null {
+  if (catalogSize <= 0) return null;
+  const raw = text.trim().toLowerCase().replace(/^!+/, "");
+  let n: number | null = null;
+  const m = /^item[:\s#_-]*(\d+)$/.exec(raw);
+  if (m) {
+    n = Number.parseInt(m[1], 10);
+  } else if (/^\d+$/.test(raw)) {
+    n = Number.parseInt(raw, 10);
+  }
+  if (n == null || !Number.isFinite(n)) return null;
+  // Allow 0-based or 1-based: if n === catalogSize treat as 0-based last index only when n < size.
+  if (n >= 0 && n < catalogSize) return n;
+  if (n >= 1 && n <= catalogSize) return n - 1;
+  return null;
+}
+
+/** Accept `class:upgrade_foo` (preserves class_name casing via sanitize). */
+export function parseClassVoteOption(text: string): string | null {
+  const raw = String(text ?? "")
+    .trim()
+    .replace(/^!+/, "");
+  const m = /^class[:\s#_-]+(.+)$/i.exec(raw);
+  if (!m) return null;
+  return sanitizeHelpClassName(m[1].trim());
 }

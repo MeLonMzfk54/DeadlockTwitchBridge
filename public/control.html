@@ -494,6 +494,7 @@
             <option value="full">Полный (тип + тир)</option>
             <option value="category">Только категория</option>
             <option value="tier">Только тир</option>
+            <option value="items">Предметы (расширение)</option>
           </select>
         </label>
         <label>
@@ -538,9 +539,13 @@
         <button class="primary" onclick="shopStart('full')">Полный цикл (тип + тир → apply)</button>
         <button onclick="shopStart('category')">Только категория</button>
         <button onclick="shopStart('tier')">Только тир</button>
+        <button onclick="shopStart('items')">Голосование за предмет</button>
         <button class="danger" onclick="shopCancel()">Cancel</button>
         <button class="danger" onclick="shopSkip()">Skip покупки</button>
       </div>
+      <p style="margin:0 0 8px;font-size:0.8rem;color:var(--muted)">
+        Режим предметов: мод сканирует магазин → панель Twitch Extension / чат <code>item:N</code> → покупка выбранной карточки.
+      </p>
       <div class="inline-actions">
         <button onclick="shopBannerTest('start')">Тест баннера: старт</button>
         <button onclick="shopBannerTest('end')">Тест баннера: конец</button>

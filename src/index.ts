@@ -20,10 +20,16 @@ import { startHttpServer } from "./server/http-server.js";
 import { printTestModeHelp } from "./test/test-mode.js";
 import type { BridgeStatus } from "./types.js";
 import { join } from "node:path";
-import { ShopVoteController, isShopVotingStage } from "./shop/shop-vote-controller.js";
+import {
+  ShopVoteController,
+  isShopVotingStage,
+  parseItemVoteOption,
+} from "./shop/shop-vote-controller.js";
 import { parseShopChatVote, parseShopChatVotes } from "./shop/shop-chat-parser.js";
 import { loadShopVoteSettings, saveShopVoteSettings, formatShopChatAnnounce } from "./shop/shop-vote-settings.js";
 import { sendTwitchChatMessage } from "./twitch/chat-send.js";
+import { ExtPubSubThrottle } from "./extensions/pubsub.js";
+import { toExtShopPubSubMessage } from "./extensions/ext-shop-state.js";
 
 const MOD_ONLINE_MS = 8_000;
 
@@ -93,6 +99,7 @@ async function main(): Promise<void> {
       stage,
       settings: snapshot.settings,
       category: snapshot.winnerCategory,
+      itemCount: snapshot.catalogItems?.length ?? 0,
     });
     if (!message) return;
     void (async () => {
@@ -108,6 +115,22 @@ async function main(): Promise<void> {
         );
       }
     })();
+  });
+
+  const extPubSub = new ExtPubSubThrottle(() => {
+    if (!config.twitchExtensionSecret || !config.twitchExtensionClientId) return null;
+    const broadcasterId = config.twitchBroadcasterId.trim();
+    if (!broadcasterId) return null;
+    return {
+      extensionClientId: config.twitchExtensionClientId,
+      extensionSecret: config.twitchExtensionSecret,
+      ownerUserId: config.twitchExtensionOwnerId || broadcasterId,
+      broadcasterId,
+    };
+  });
+  shopVote.on("update", (snap) => {
+    if (!config.twitchExtensionSecret) return;
+    extPubSub.publish(toExtShopPubSubMessage(snap));
   });
 
   let twitchConnected = false;
@@ -226,6 +249,11 @@ async function main(): Promise<void> {
     gameEventBus,
     shopVote,
     onShopSettingsChange: persistShopSettings,
+    extension: {
+      clientId: config.twitchExtensionClientId,
+      secret: config.twitchExtensionSecret,
+      broadcasterId: config.twitchBroadcasterId,
+    },
   });
 
   if (config.testMode) {
@@ -284,6 +312,23 @@ async function main(): Promise<void> {
       // Login for /control nick feed; falls back to id. Last-vote-wins per chatter per axis.
       const voterId = msg.chatterUserLogin || msg.chatterUserId;
 
+      if (stage === "voting_items") {
+        const text = bangOpts.requireBangPrefix
+          ? msg.text.trim().startsWith("!")
+            ? msg.text
+            : ""
+          : msg.text;
+        if (!text) return;
+        const idx = parseItemVoteOption(text, snap.catalogItems?.length ?? 0);
+        if (idx == null) return;
+        try {
+          shopVote.cast(`item:${idx}`, voterId);
+        } catch {
+          /* ignore */
+        }
+        return;
+      }
+
       if (stage === "voting_combined") {
         const multi = parseShopChatVotes(msg.text, bangOpts);
         if (!multi) return;
@@ -327,6 +372,7 @@ async function main(): Promise<void> {
   console.log(`Open control panel: http://${config.httpHost}:${config.httpPort}/control`);
 
   const shutdown = (): void => {
+    extPubSub.stop();
     consoleTail.stop();
     stopWasdInvertHook();
     stopScreenFlipHelper();

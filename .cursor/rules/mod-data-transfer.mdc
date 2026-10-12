@@ -12,7 +12,7 @@ Deadlock Panorama **cannot** use `fetch`, `$.AsyncWebRequest`, or websockets as 
 | Direction | Channel | Use for |
 |-----------|---------|---------|
 | **Bridge → HUD (structured state)** | PNG image side-channel | Vote %, stage, timer, small ints |
-| **Bridge → game (commands)** | cfg-bind: write `twitch_bridge_effect.cfg` + F10 `exec` | Apply roll (`bridge_shop_seq/cat/tier`), effect cmds |
+| **Bridge → game (commands)** | cfg-bind: write `twitch_bridge_effect.cfg` + F10 `exec` | Apply roll (`bridge_shop_seq/cat/tier/cls`), effect cmds |
 | **Panorama → Bridge** | `$.Msg("[twitch_bridge] EVENT …")` → `console.log` tail (`-condebug`) | Events when HTTP out fails |
 | **Panorama → Bridge (best-effort)** | `POST /api/game-event` via AsyncWebRequest | May be dead; keep Msg duplicate |
 | **Browser `/control`** | Normal JSON HTTP | Control panel only — not the game |
@@ -40,13 +40,23 @@ Moving shop `SetImage` off `#RSVoteNetHost` makes every percentage slot time out
 - Do not `SetParent` the banner or its debug label, and do not set `overflow` on the top bar’s parent or `#gameplay_hud`. That makes hideout phase read as `in_match`.
 - While the shop is collapsed, `#RSVoteNetHost` also has no size. Do not “fix” that by relocating the host. Moving it onto `#Shop` shifts the shop layout and still does not decode off the random tab.
 
+## Items vote & class_name apply
+
+Extension item vote does **not** wait on a game catalog scan (`awaiting_catalog` / `bridge_shop_scan` / `shop_catalog`). Overlay cards come from the public Assets API; votes are `class:<ClassName>` with category/tier.
+
+- **Do not** put item lists, names, or class strings in PNG — only small ints (stage, timer, % , seq, cat/tier pack).
+- **Streamer sees stage/banner** via existing PNG `meta` / `banner` slots on their fixed hosts.
+- **Winner purchase**: PNG `cmd` (`w=seq`, `h=cat*10+tier`) is the apply signal (works without F10). Item identity rides beside it as rare cfg `bridge_shop_cls <ClassName>` (same pattern as `bridge_shop_pick`). Mod finds the card locally (`pickCls`) — no catalog round-trip to the bridge.
+- F10/cfg remains **backup** for convars; do not design features that require a successful F10 on every vote start (catalog scan via F10 was the old hang).
+
 ## Do not
 
 - Poll JSON with `$.AsyncWebRequest` / GET for HUD state (shows `vote=timeout` / `http_?`).
 - Ask Panorama to read arbitrary disk files / JSON next to the exe.
 - Spam F10/cfg every chat vote for tallies — cfg is for **discrete commands**, not high-frequency HUD.
 - Put large payloads in convars.
+- Gate Extension item-vote UI on `shop_catalog` from the game or a `bridge_shop_scan` round-trip.
 
 ## When adding a new Bridge → HUD signal
 
-Prefer extending the PNG slot protocol (or a new `.png` endpoint). Use cfg/convars only for rare one-shot commands (like shop apply).
+Prefer extending the PNG slot protocol (or a new `.png` endpoint). Use cfg/convars only for rare one-shot commands (like shop apply / `bridge_shop_cls`).

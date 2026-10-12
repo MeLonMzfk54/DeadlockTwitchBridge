@@ -2,9 +2,11 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { dirname, join } from "node:path";
 import { projectRoot } from "../config.js";
 
-export type ShopStartMode = "full" | "category" | "tier";
+export type ShopStartMode = "full" | "category" | "tier" | "items";
 export type ShopSettingsCategory = "weapon" | "vitality" | "spirit";
 export type ShopSettingsTier = 1 | 2 | 3 | 4;
+/** How the items-vote winner is chosen after the timer. */
+export type ShopItemWinnerMode = "random_among_voted" | "plurality";
 
 const ALL_CATEGORIES: ShopSettingsCategory[] = ["weapon", "vitality", "spirit"];
 
@@ -17,6 +19,8 @@ export const DEFAULT_CHAT_ANNOUNCE_TIER =
   "Голосование за тир ({category})! Пишите в чат: {options}. {seconds} сек.";
 export const DEFAULT_CHAT_ANNOUNCE_COMBINED =
   "Голосование! Тип: {options}. Тир: {tierOptions}. Можно вместе: !w 1. {seconds} сек.";
+export const DEFAULT_CHAT_ANNOUNCE_ITEMS =
+  "Голосование за предмет! Выберите карточку в расширении или пишите item:N в чат. {seconds} сек.";
 
 export interface ShopVoteSettings {
   /** When true: schedule votes on match enter + after purchase (random interval min–max). */
@@ -53,6 +57,16 @@ export interface ShopVoteSettings {
   chatAnnounceTier: string;
   /** Template for combined type+tier vote (empty = skip). Placeholders: {options} {tierOptions} {seconds} {prefix}. */
   chatAnnounceCombined: string;
+  /** Template for specific-item vote (empty = skip). Placeholders: {seconds} {count}. */
+  chatAnnounceItems: string;
+  /** Duration for voting_items stage (ms). Falls back to categoryDurationMs when unset in merge. */
+  itemDurationMs: number;
+  /**
+   * Items-vote winner:
+   * - `random_among_voted` — uniform among indices with ≥1 vote (no votes → random catalog)
+   * - `plurality` — highest tally (ties broken randomly; no votes → random catalog)
+   */
+  itemWinnerMode: ShopItemWinnerMode;
 }
 
 export interface ShopVoteSettingsSeed {
@@ -110,6 +124,9 @@ export function defaultShopVoteSettings(seed: ShopVoteSettingsSeed = {}): ShopVo
     chatAnnounceCategory: DEFAULT_CHAT_ANNOUNCE_CATEGORY,
     chatAnnounceTier: DEFAULT_CHAT_ANNOUNCE_TIER,
     chatAnnounceCombined: DEFAULT_CHAT_ANNOUNCE_COMBINED,
+    chatAnnounceItems: DEFAULT_CHAT_ANNOUNCE_ITEMS,
+    itemDurationMs: seed.categoryDurationMs ?? 25_000,
+    itemWinnerMode: "random_among_voted",
   };
 }
 
@@ -128,7 +145,16 @@ function parseTier(value: unknown, fallback: ShopSettingsTier): ShopSettingsTier
 }
 
 function parseStartMode(value: unknown, fallback: ShopStartMode): ShopStartMode {
-  if (value === "full" || value === "category" || value === "tier") return value;
+  if (value === "full" || value === "category" || value === "tier" || value === "items") {
+    return value;
+  }
+  return fallback;
+}
+
+function parseItemWinnerMode(value: unknown, fallback: ShopItemWinnerMode): ShopItemWinnerMode {
+  if (value === "random_among_voted" || value === "plurality") {
+    return value;
+  }
   return fallback;
 }
 
@@ -181,11 +207,20 @@ export function mergeShopVoteSettings(
       next.chatAnnounceCombined,
     );
   }
+  if ("chatAnnounceItems" in partial) {
+    next.chatAnnounceItems = clampAnnounceText(partial.chatAnnounceItems, next.chatAnnounceItems);
+  }
   if (isPositiveMs(partial.categoryDurationMs)) {
     next.categoryDurationMs = Math.round(partial.categoryDurationMs);
   }
   if (isPositiveMs(partial.tierDurationMs)) {
     next.tierDurationMs = Math.round(partial.tierDurationMs);
+  }
+  if (isPositiveMs(partial.itemDurationMs)) {
+    next.itemDurationMs = Math.round(partial.itemDurationMs);
+  }
+  if ("itemWinnerMode" in partial) {
+    next.itemWinnerMode = parseItemWinnerMode(partial.itemWinnerMode, next.itemWinnerMode);
   }
 
   // Legacy fixed restartDelayMs → both min and max (when interval fields not also set).
@@ -306,22 +341,26 @@ const CAT_LABELS: Record<ShopSettingsCategory, string> = {
 };
 
 export interface FormatShopChatAnnounceInput {
-  stage: "voting_category" | "voting_tier" | "voting_combined";
+  stage: "voting_category" | "voting_tier" | "voting_combined" | "voting_items";
   settings: Pick<
     ShopVoteSettings,
     | "chatAnnounceEnabled"
     | "chatAnnounceCategory"
     | "chatAnnounceTier"
     | "chatAnnounceCombined"
+    | "chatAnnounceItems"
     | "requireBangPrefix"
     | "enabledCategories"
     | "minTier"
     | "maxTier"
     | "categoryDurationMs"
     | "tierDurationMs"
+    | "itemDurationMs"
   >;
   /** Winning / locked category (for tier stage). */
   category?: ShopSettingsCategory | string | null;
+  /** Catalog size for items vote announce. */
+  itemCount?: number;
 }
 
 /**
@@ -337,7 +376,9 @@ export function formatShopChatAnnounce(input: FormatShopChatAnnounceInput): stri
       ? settings.chatAnnounceCategory
       : stage === "voting_tier"
         ? settings.chatAnnounceTier
-        : settings.chatAnnounceCombined;
+        : stage === "voting_items"
+          ? settings.chatAnnounceItems
+          : settings.chatAnnounceCombined;
   if (typeof template !== "string" || !template.trim()) return null;
 
   const prefix = settings.requireBangPrefix ? "!" : "";
@@ -360,6 +401,12 @@ export function formatShopChatAnnounce(input: FormatShopChatAnnounceInput): stri
   } else if (stage === "voting_tier") {
     options = tierOptions;
     seconds = Math.max(1, Math.round(settings.tierDurationMs / 1000));
+  } else if (stage === "voting_items") {
+    options = "item:N";
+    seconds = Math.max(
+      1,
+      Math.round((settings.itemDurationMs || settings.categoryDurationMs) / 1000),
+    );
   } else {
     options = catOptions;
     seconds = Math.max(1, Math.round(settings.categoryDurationMs / 1000));
@@ -370,6 +417,7 @@ export function formatShopChatAnnounce(input: FormatShopChatAnnounceInput): stri
     catKey === "weapon" || catKey === "vitality" || catKey === "spirit"
       ? CAT_LABELS[catKey]
       : String(input.category ?? "—");
+  const count = typeof input.itemCount === "number" ? String(input.itemCount) : "0";
 
   const filled = template
     .replaceAll("{options}", options)
@@ -377,6 +425,7 @@ export function formatShopChatAnnounce(input: FormatShopChatAnnounceInput): stri
     .replaceAll("{seconds}", String(seconds))
     .replaceAll("{prefix}", prefix)
     .replaceAll("{category}", categoryLabel)
+    .replaceAll("{count}", count)
     .trim();
 
   if (!filled) return null;

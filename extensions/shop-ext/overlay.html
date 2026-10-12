@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Deadlock Shop Overlay</title>
+  <link rel="stylesheet" href="overlay.css" />
+</head>
+<body>
+  <script src="https://extension-files.twitch.tv/helper/v1/twitch-ext.min.js"></script>
+  <script src="config.js"></script>
+  <div class="stage preview-open" id="stage">
+    <aside class="rail" id="rail" aria-label="Shop categories">
+      <button type="button" class="rail-btn weapon active" data-cat="weapon" title="Weapon" aria-label="Weapon" aria-pressed="true">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <button type="button" class="rail-btn vitality" data-cat="vitality" title="Vitality" aria-label="Vitality" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+      </button>
+      <button type="button" class="rail-btn spirit" data-cat="spirit" title="Spirit" aria-label="Spirit" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.2 5.4L20 10l-4.4 3.2L17 19l-5-3.2L7 19l1.4-5.8L4 10l5.8-1.6L12 3z" fill="currentColor"/></svg>
+      </button>
+      <button type="button" class="rail-btn search" data-action="search" title="Search" aria-label="Search" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="5.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15 15l5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <button type="button" class="rail-btn lang" id="langBtn" data-action="lang" title="Language" aria-label="Language">
+        <span class="lang-code" id="langCode">EN</span>
+      </button>
+    </aside>
+
+    <section class="shop theme-weapon" id="shop" hidden>
+      <header class="shop-head">
+        <div class="brand">
+          <p class="brand-title" id="brandTitle">Fairfax</p>
+          <p class="brand-sub" id="brandSub">Artillery Bought and Sold</p>
+        </div>
+        <label class="search-box" id="searchBox" hidden>
+          <span class="sr-only">Filter items</span>
+          <input type="search" id="searchInput" placeholder="Filter items…" autocomplete="off" />
+        </label>
+        <button type="button" class="close-btn" id="closeBtn" aria-label="Close shop">×</button>
+      </header>
+
+      <p class="vote-banner" id="voteBanner" hidden></p>
+      <p class="shop-status" id="shopStatus">Loading items…</p>
+
+      <div class="tiers" id="tiers" hidden>
+        <section class="tier-panel" data-tier="1">
+          <header class="tier-head">
+            <span class="price" data-price>…</span>
+            <span class="tier-label" data-i18n="tier1">Tier 1</span>
+          </header>
+          <div class="cards" data-cards></div>
+        </section>
+        <section class="tier-panel" data-tier="2">
+          <header class="tier-head">
+            <span class="price" data-price>…</span>
+            <span class="tier-label" data-i18n="tier2">Tier 2</span>
+          </header>
+          <div class="cards" data-cards></div>
+        </section>
+        <section class="tier-panel" data-tier="3">
+          <header class="tier-head">
+            <span class="price" data-price>…</span>
+            <span class="tier-label" data-i18n="tier3">Tier 3</span>
+          </header>
+          <div class="cards" data-cards></div>
+        </section>
+        <section class="tier-panel tier-experts" data-tier="4">
+          <header class="tier-head">
+            <span class="price" data-price>…</span>
+            <span class="tier-label" data-i18n="tier4">Tier 4 Experts Only</span>
+          </header>
+          <div class="cards" data-cards></div>
+        </section>
+      </div>
+    </section>
+  </div>
+
+  <script src="overlay.js"></script>
+</body>
+</html>

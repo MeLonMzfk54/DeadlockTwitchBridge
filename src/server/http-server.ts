@@ -20,6 +20,8 @@ import {
   getProbePng,
   parseHudSlot,
 } from "../shop/shop-vote-png.js";
+import { extensionVoterId, verifyExtensionJwt } from "../extensions/jwt.js";
+import { toExtShopPublicState } from "../extensions/ext-shop-state.js";
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -38,6 +40,12 @@ export interface HttpServerContext {
   shopVote: ShopVoteController;
   /** Persist shop prefs after /control or API changes. */
   onShopSettingsChange?: () => void;
+  /** Twitch Extension JWT + CORS for /api/ext/* */
+  extension?: {
+    clientId: string;
+    secret: string;
+    broadcasterId: string;
+  };
 }
 
 export function startHttpServer(host: string, port: number, ctx: HttpServerContext): void {
@@ -56,6 +64,9 @@ export function startHttpServer(host: string, port: number, ctx: HttpServerConte
     console.log(`[http] Shop probe:    http://${host}:${port}/api/shop-probe.png`);
     console.log(`[http] Shop HUD PNG:  http://${host}:${port}/api/shop-vote-hud.png`);
     console.log(`[http] Crosshair PNG: http://${host}:${port}/api/crosshair-hud.png`);
+    if (ctx.extension?.secret) {
+      console.log(`[http] Extension API: http://${host}:${port}/api/ext/shop`);
+    }
   });
 }
 
@@ -69,13 +80,30 @@ async function handleRequest(
     const { pathname } = url;
 
     if (req.method === "OPTIONS") {
+      const extOrigin = extensionCorsOrigin(req, ctx);
       res.writeHead(204, {
-        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Origin": extOrigin ?? "*",
         "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        ...(extOrigin ? { Vary: "Origin" } : {}),
       });
       res.end();
       return;
+    }
+
+    // Tunnel traffic (Cloudflare) may only hit Extension routes.
+    if (isTunnelProxied(req) && !pathname.startsWith("/api/ext/")) {
+      return json(res, 403, { error: "Only /api/ext/* is available via tunnel" });
+    }
+
+    if (
+      (req.method === "GET" || req.method === "POST") &&
+      pathname === "/api/ext/shop"
+    ) {
+      return handleExtShopGet(req, res, ctx);
+    }
+    if (req.method === "POST" && pathname === "/api/ext/shop/vote") {
+      return handleExtShopVote(req, res, ctx);
     }
 
     if (req.method === "GET" && pathname === "/api/status") {
@@ -216,7 +244,10 @@ async function handleRequest(
       const body = await readBody(req);
       const payload = JSON.parse(body || "{}") as { stage?: string };
       const stage =
-        payload.stage === "category" || payload.stage === "tier" || payload.stage === "full"
+        payload.stage === "category" ||
+        payload.stage === "tier" ||
+        payload.stage === "full" ||
+        payload.stage === "items"
           ? payload.stage
           : "full";
       const snap = await ctx.shopVote.start(stage);
@@ -225,13 +256,23 @@ async function handleRequest(
 
     if (req.method === "POST" && pathname === "/api/shop-vote/cast") {
       const body = await readBody(req);
-      const payload = JSON.parse(body || "{}") as { option?: string; userId?: string };
+      const payload = JSON.parse(body || "{}") as {
+        option?: string;
+        userId?: string;
+        category?: string;
+        tier?: number;
+        name?: string;
+      };
       if (!payload.option) {
         return json(res, 400, { error: "option is required" });
       }
       try {
         const userId = typeof payload.userId === "string" ? payload.userId : undefined;
-        const snap = ctx.shopVote.cast(payload.option, userId);
+        const snap = ctx.shopVote.cast(payload.option, userId, {
+          category: payload.category,
+          tier: payload.tier,
+          name: payload.name,
+        });
         return json(res, 200, snap);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -432,6 +473,146 @@ function isLocalRequest(req: IncomingMessage): boolean {
   // Some stacks report IPv4-mapped IPv6
   if (remote.endsWith("127.0.0.1")) return true;
   return false;
+}
+
+/** Cloudflare Tunnel / reverse proxies set these; treat as public. */
+function isTunnelProxied(req: IncomingMessage): boolean {
+  return Boolean(req.headers["cf-connecting-ip"] || req.headers["x-forwarded-for"]);
+}
+
+function extensionCorsOrigin(req: IncomingMessage, ctx: HttpServerContext): string | null {
+  const origin = req.headers.origin;
+  if (typeof origin !== "string" || !origin) return null;
+  const clientId = ctx.extension?.clientId?.trim();
+  if (clientId && origin === `https://${clientId}.ext-twitch.tv`) return origin;
+  if (origin.endsWith(".ext-twitch.tv") || origin.includes("localhost")) return origin;
+  return null;
+}
+
+function readBearerToken(req: IncomingMessage): string {
+  const auth = req.headers.authorization;
+  if (typeof auth === "string" && auth.toLowerCase().startsWith("bearer ")) {
+    return auth.slice(7).trim();
+  }
+  return "";
+}
+
+async function handleExtShopGet(
+  req: IncomingMessage,
+  res: ServerResponse,
+  ctx: HttpServerContext,
+): Promise<void> {
+  const secret = ctx.extension?.secret?.trim() ?? "";
+  // No secret yet → open preview (Local Test without Twitch Extension credentials).
+  if (secret) {
+    const token = readBearerToken(req);
+    const payload = verifyExtensionJwt(token, secret);
+    if (!payload) {
+      return extJson(res, req, ctx, 401, { error: "Invalid extension JWT" });
+    }
+    if (
+      ctx.extension?.broadcasterId &&
+      payload.channel_id &&
+      payload.channel_id !== ctx.extension.broadcasterId
+    ) {
+      return extJson(res, req, ctx, 403, { error: "Wrong channel" });
+    }
+  }
+  const match = ctx.gameEventBus.getModStatus().match;
+  ctx.shopVote.syncFromMatchPhase(match.phase || "", match.shopOpen);
+  const state = toExtShopPublicState(ctx.shopVote.getSnapshot(), { includeItems: true });
+  return extJson(res, req, ctx, 200, { ...state, preview: !secret });
+}
+
+async function handleExtShopVote(
+  req: IncomingMessage,
+  res: ServerResponse,
+  ctx: HttpServerContext,
+): Promise<void> {
+  const secret = ctx.extension?.secret?.trim() ?? "";
+  const body = await readBody(req);
+  let option = "";
+  let bodyUserId = "";
+  let category: string | undefined;
+  let tier: number | undefined;
+  let name: string | undefined;
+  try {
+    const parsed = JSON.parse(body || "{}") as {
+      option?: string;
+      userId?: string;
+      category?: string;
+      tier?: number;
+      name?: string;
+      className?: string;
+      cls?: string;
+    };
+    option = typeof parsed.option === "string" ? parsed.option : "";
+    if (!option.trim()) {
+      const cls =
+        (typeof parsed.className === "string" && parsed.className) ||
+        (typeof parsed.cls === "string" && parsed.cls) ||
+        "";
+      if (cls) option = `class:${cls}`;
+    }
+    bodyUserId = typeof parsed.userId === "string" ? parsed.userId.trim() : "";
+    if (typeof parsed.category === "string") category = parsed.category;
+    if (typeof parsed.tier === "number" && Number.isFinite(parsed.tier)) tier = parsed.tier;
+    if (typeof parsed.name === "string") name = parsed.name;
+  } catch {
+    return extJson(res, req, ctx, 400, { error: "Invalid JSON" });
+  }
+  if (!option.trim()) {
+    return extJson(res, req, ctx, 400, { error: "option is required" });
+  }
+
+  let userId: string;
+  if (secret) {
+    const token = readBearerToken(req);
+    const payload = verifyExtensionJwt(token, secret);
+    if (!payload) {
+      return extJson(res, req, ctx, 401, { error: "Invalid extension JWT" });
+    }
+    if (
+      ctx.extension?.broadcasterId &&
+      payload.channel_id &&
+      payload.channel_id !== ctx.extension.broadcasterId
+    ) {
+      return extJson(res, req, ctx, 403, { error: "Wrong channel" });
+    }
+    userId = extensionVoterId(payload);
+  } else {
+    // Preview without Extension secret — still last-vote-wins per opaque id.
+    userId = bodyUserId || "preview-viewer";
+  }
+
+  try {
+    ctx.shopVote.cast(option, userId, { category, tier, name });
+    const snap = ctx.shopVote.getSnapshot();
+    const state = toExtShopPublicState(snap, {
+      includeItems: snap.stage === "voting_items",
+    });
+    return extJson(res, req, ctx, 200, { ...state, preview: !secret });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return extJson(res, req, ctx, 400, { error: message });
+  }
+}
+
+function extJson(
+  res: ServerResponse,
+  req: IncomingMessage,
+  ctx: HttpServerContext,
+  status: number,
+  body: unknown,
+): void {
+  const origin = extensionCorsOrigin(req, ctx);
+  res.writeHead(status, {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": origin ?? "null",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    ...(origin ? { Vary: "Origin" } : {}),
+  });
+  res.end(JSON.stringify(body));
 }
 
 function serveStatic(res: ServerResponse, filePath: string): void {

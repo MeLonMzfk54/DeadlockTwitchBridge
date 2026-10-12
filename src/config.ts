@@ -57,6 +57,15 @@ export function loadAppConfig(): AppConfig {
     vconsoleReconnectMs: envInt("VCONSOLE_RECONNECT_MS", 5000),
     httpHost: process.env.HTTP_HOST ?? "127.0.0.1",
     httpPort: envInt("HTTP_PORT", 3920),
+    twitchExtensionClientId:
+      process.env.TWITCH_EXTENSION_CLIENT_ID?.trim() ||
+      process.env.TWITCH_CLIENT_ID?.trim() ||
+      "",
+    twitchExtensionSecret: process.env.TWITCH_EXTENSION_SECRET?.trim() || "",
+    twitchExtensionOwnerId:
+      process.env.TWITCH_EXTENSION_OWNER_ID?.trim() ||
+      process.env.TWITCH_BROADCASTER_ID?.trim() ||
+      "",
     testMode: envBool("TEST_MODE", false) || process.argv.includes("--test-mode"),
     allowCheatEffects: envBool("ALLOW_CHEAT_EFFECTS", false),
     allowDestructiveEffects: envBool("ALLOW_DESTRUCTIVE_EFFECTS", false),

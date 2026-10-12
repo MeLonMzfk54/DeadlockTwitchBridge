@@ -2,7 +2,7 @@
 (function () {
     "use strict";
 
-    var MOD_VERSION = "1.9.0";
+    var MOD_VERSION = "1.9.1";
     var LOG_PREFIX = "[twitch_bridge] EVENT ";
     var POLL_SEC = 0.2;
     var BUSY_WATCHDOG_SEC = 10.0;
@@ -26,13 +26,16 @@
     var IMG_TIMEOUT_MS = 8000;
     var IMG_PROBE_ATTEMPTS = 3;
     // cmd after meta: PNG apply/skip (cfg-poll remains backup). Banner is a separate poller.
-    var HUD_SLOTS = ["cats", "t12", "t34", "meta", "cmd"];
+    var HUD_SLOTS_CORE = ["cats", "t12", "t34", "meta", "cmd"];
     var CMD_SEQ_MAX = 200;
 
     var CV_URL = "bridge_evt_url";
     var CV_SEQ = "bridge_shop_seq";
     var CV_CAT = "bridge_shop_cat";
     var CV_TIER = "bridge_shop_tier";
+    var CV_PICK = "bridge_shop_pick";
+    var CV_CLS = "bridge_shop_cls";
+    var CV_SCAN = "bridge_shop_scan";
     var CV_DEBUG = "bridge_shop_debug";
 
     var CAT_TO_LIST = {
@@ -108,7 +111,9 @@
         imgScaleY: 1,
         imgSwap: false,
         imgRoundScheduled: false,
-        imgSlotCache: { cats: null, t12: null, t34: null, meta: null, cmd: null }
+        imgSlotCache: { cats: null, t12: null, t34: null, meta: null, cmd: null },
+        lastScanSeq: 0,
+        scanBusy: false
     };
 
     function nowMs() {
@@ -161,7 +166,10 @@
     }
 
     function tryRegisterConvars() {
-        var names = [CV_SEQ, CV_CAT, CV_TIER, CV_DEBUG];
+        var names = [
+            CV_SEQ, CV_CAT, CV_TIER, CV_PICK, CV_CLS, CV_SCAN,
+            CV_DEBUG
+        ];
         var registered = [];
         var candidates = [];
         if (typeof Convars !== "undefined" && Convars) candidates.push(Convars);
@@ -211,12 +219,27 @@
         } catch (e) {}
     }
 
+    function isVoteOrRollStage(stage) {
+        var s = stage || state.lastVoteStage || "";
+        return (
+            s === "voting_category" ||
+            s === "voting_tier" ||
+            s === "voting_combined" ||
+            s === "voting_items" ||
+            s === "awaiting_catalog" ||
+            s === "applying" ||
+            s === "rolled" ||
+            s === "waiting_shop"
+        );
+    }
+
     function currentImgPollSec() {
-        var stage = state.lastVoteStage || "";
-        if (stage === "voting_category" || stage === "voting_tier" || stage === "voting_combined") {
-            return IMG_POLL_VOTE_SEC;
-        }
+        if (isVoteOrRollStage()) return IMG_POLL_VOTE_SEC;
         return IMG_POLL_SEC;
+    }
+
+    function currentHudSlots() {
+        return HUD_SLOTS_CORE;
     }
 
     function getPostUrl() {
@@ -302,7 +325,13 @@
         if (s === "applying" || s === "rolled" || s === "waiting_shop") {
             return { action: "skip", label: "SKIP", css: "rs-vote-btn-skip" };
         }
-        if (s === "voting_category" || s === "voting_tier" || s === "voting_combined") {
+        if (
+            s === "voting_category" ||
+            s === "voting_tier" ||
+            s === "voting_combined" ||
+            s === "voting_items" ||
+            s === "awaiting_catalog"
+        ) {
             return { action: "restart", label: "RESTART", css: "rs-vote-btn-restart" };
         }
         return { action: "start", label: "START VOTE", css: "" };
@@ -424,6 +453,10 @@
         emit(open ? "shop_open" : "shop_closed", attachHero({ open: open }));
         if (open) {
             activateRandomTabForPipeline("shop_open");
+            // Host is laid out as soon as the shop opens — pull vote without waiting 1.2s.
+            if (!isVoteOrRollStage()) {
+                scheduleImgRound(0.05);
+            }
         }
     }
 
@@ -431,6 +464,8 @@
         return stage === "voting_category" ||
             stage === "voting_tier" ||
             stage === "voting_combined" ||
+            stage === "voting_items" ||
+            stage === "awaiting_catalog" ||
             stage === "applying" ||
             stage === "rolled" ||
             stage === "waiting_shop";
@@ -1397,9 +1432,11 @@
             "waiting_shop",
             "purchased",
             "failed",
-            "voting_combined"
+            "voting_combined",
+            "awaiting_catalog",
+            "voting_items"
         ];
-        var i = clampLevel(level, 8);
+        var i = clampLevel(level, 10);
         return stages[i] || "idle";
     }
 
@@ -1748,15 +1785,16 @@
 
     function fetchHudSlotsRound(onDone, onFail) {
         var slots = { cats: null, t12: null, t34: null, meta: null, cmd: null };
+        var queue = currentHudSlots();
         var i = 0;
         function next() {
-            if (i >= HUD_SLOTS.length) {
+            if (i >= queue.length) {
                 try {
                     onDone(slots);
                 } catch (e) {}
                 return;
             }
-            var name = HUD_SLOTS[i];
+            var name = queue[i];
             i += 1;
             rawImgRequest(
                 getHudSlotUrl(name),
@@ -1841,7 +1879,29 @@
 
         // Always keep the newest pending cmd — even while busy — so a stuck busy
         // does not permanently drop seq N+1.
-        var incoming = { seq: seq, cat: cat, tier: tier, source: source || "http" };
+        var pickHint = readConvarInt(CV_PICK, 0);
+        var clsHint = readConvarString(CV_CLS, "");
+        if (clsHint === "0") clsHint = "";
+        try {
+            if (typeof globalThis !== "undefined" &&
+                globalThis.__twitch_bridge_pending_shop_cmd &&
+                globalThis.__twitch_bridge_pending_shop_cmd.seq === seq) {
+                if (globalThis.__twitch_bridge_pending_shop_cmd.pick > 0) {
+                    pickHint = globalThis.__twitch_bridge_pending_shop_cmd.pick;
+                }
+                if (globalThis.__twitch_bridge_pending_shop_cmd.cls) {
+                    clsHint = String(globalThis.__twitch_bridge_pending_shop_cmd.cls);
+                }
+            }
+        } catch (ePick) {}
+        var incoming = {
+            seq: seq,
+            cat: cat,
+            tier: tier,
+            pick: pickHint,
+            cls: clsHint,
+            source: source || "http"
+        };
         if (!state.pendingCmd) {
             state.pendingCmd = incoming;
         } else {
@@ -1944,11 +2004,23 @@
         state.awaitingRollSeq = seq;
         var shopWasOpen = isShopOpen(root);
 
+        var pick = readConvarInt(CV_PICK, 0);
+        var pickCls = readConvarString(CV_CLS, "");
+        if (pickCls === "0") pickCls = "";
+        if (state.pendingCmd && state.pendingCmd.pick > 0) {
+            pick = state.pendingCmd.pick;
+        }
+        if (state.pendingCmd && state.pendingCmd.cls) {
+            pickCls = String(state.pendingCmd.cls);
+        }
+
         try {
             root.ActivateRandomTab();
         } catch (eAct) {
             clearBusy("activate_failed");
-            state.pendingCmd = { seq: seq, cat: cat, tier: tier, source: source || "http" };
+            state.pendingCmd = {
+                seq: seq, cat: cat, tier: tier, pick: pick, cls: pickCls, source: source || "http"
+            };
             emit("shop_error", { reason: "activate_failed", seq: seq, message: String(eAct) });
             return;
         }
@@ -1958,7 +2030,9 @@
             var ok = ensureOnlyCategory(root, listId);
             if (!ok) {
                 clearBusy("category_sync_failed");
-                state.pendingCmd = { seq: seq, cat: cat, tier: tier, source: source || "http" };
+                state.pendingCmd = {
+                    seq: seq, cat: cat, tier: tier, pick: pick, cls: pickCls, source: source || "http"
+                };
                 return;
             }
             $.Schedule(0.06, function () {
@@ -1966,13 +2040,20 @@
                 try {
                     var started = false;
                     if (typeof root.RandomShopForceRoll === "function") {
-                        started = root.RandomShopForceRoll(tier, { seq: seq, force: true });
+                        started = root.RandomShopForceRoll(tier, {
+                            seq: seq,
+                            force: true,
+                            pickIndex: pick > 0 ? pick - 1 : -1,
+                            pickCls: pickCls || ""
+                        });
                     } else {
                         started = root.RandomShopRollTier(tier);
                     }
                     if (started === false) {
                         clearBusy("roll_busy");
-                        state.pendingCmd = { seq: seq, cat: cat, tier: tier, source: source || "http" };
+                        state.pendingCmd = {
+                            seq: seq, cat: cat, tier: tier, cls: pickCls, source: source || "http"
+                        };
                         emit("shop_error", { reason: "roll_busy", seq: seq });
                         return;
                     }
@@ -1982,19 +2063,24 @@
                         cat: cat,
                         tier: tier,
                         listId: listId,
+                        cls: pickCls,
                         source: source || "http",
                         shopOpen: shopWasOpen
                     };
                 } catch (eRoll) {
                     emit("shop_error", { reason: "roll_failed", seq: seq, message: String(eRoll) });
                     clearBusy("roll_failed");
-                    state.pendingCmd = { seq: seq, cat: cat, tier: tier, source: source || "http" };
+                    state.pendingCmd = {
+                        seq: seq, cat: cat, tier: tier, cls: pickCls, source: source || "http"
+                    };
                     return;
                 }
                 $.Schedule(8.0, function () {
                     if (state.awaitingRollSeq === seq) {
                         clearBusy("roll_timeout");
-                        state.pendingCmd = { seq: seq, cat: cat, tier: tier, source: source || "http" };
+                        state.pendingCmd = {
+                            seq: seq, cat: cat, tier: tier, cls: pickCls, source: source || "http"
+                        };
                         emit("shop_error", { reason: "roll_timeout", seq: seq });
                     }
                 });
@@ -2069,6 +2155,35 @@
                 considerApply(seq, cat, tier, "cfg");
             }
         } catch (ePoll) {}
+        pollCatalogScan();
+    }
+
+    function pollCatalogScan() {
+        if (state.scanBusy) return;
+        try {
+            var scanSeq = readConvarInt(CV_SCAN, 0);
+            if (scanSeq <= 0 || scanSeq === state.lastScanSeq) return;
+            var root = getRoot();
+            if (!root || typeof root.RandomShopScanCatalog !== "function") return;
+            state.scanBusy = true;
+            state.lastScanSeq = scanSeq;
+            try {
+                root.RandomShopScanCatalog(scanSeq, function (items) {
+                    state.scanBusy = false;
+                    var list = items || [];
+                    emit("shop_catalog", attachHero({
+                        seq: scanSeq,
+                        count: list.length,
+                        items: list
+                    }));
+                });
+            } catch (eScan) {
+                state.scanBusy = false;
+                emit("shop_error", { reason: "catalog_scan_failed", seq: scanSeq, message: String(eScan) });
+            }
+        } catch (ePollScan) {
+            state.scanBusy = false;
+        }
     }
 
     function pollPendingFromEvents() {
@@ -2128,6 +2243,9 @@
             };
             globalThis.__twitch_bridge_on_shop_open_change = function (open) {
                 emitShopOpenState(!!open);
+            };
+            globalThis.__twitch_bridge_on_shop_owned = function (info) {
+                emit("shop_owned", attachHero(info || {}));
             };
         }
     } catch (eHooks) {}
