@@ -1,7 +1,7 @@
 // Random obstructive reticle. Loaded from citadel_hud_top_bar.xml.
 // One SetImage of /api/crosshair-hud.png on #BridgeCrosshairNetHost.
 // Width is seq. Height is shape * 20 + color.
-// Shape 0 scales the gun reticle. Other shapes are panels on the HUD root.
+// Shape 0 scales GunGrosshair and hides Dot/DotOutline. Other shapes are HUD panels.
 // Shop (gShopOpen) and the escape menu hide the effect until they close.
 // Hero-specific reticles are other panels and are left alone.
 (function () {
@@ -30,7 +30,8 @@
     var IMG_TIMEOUT_MS = 8000;
     var IMG_PROBE_ATTEMPTS = 3;
     var BRIDGE = "http://127.0.0.1:3920";
-    var STYLE_IDS = ["GunGrosshair", "Dot", "DotOutline"];
+    var GROSSHAIR_ID = "GunGrosshair";
+    var DOT_IDS = ["Dot", "DotOutline"];
 
     var state = {
         seq: 0,
@@ -160,7 +161,7 @@
         };
     }
 
-    function paintOne(panel, mode, wash) {
+    function paintGrosshair(panel, mode, wash) {
         if (!valid(panel) || !panel.style) return;
         try { panel.style.transformOrigin = "50% 50%"; } catch (eOrigin) {}
         try {
@@ -169,6 +170,29 @@
         } catch (eScale) {}
         try { panel.style.washColor = mode === "huge" ? wash : "none"; } catch (eWash) {}
         try { panel.style.opacity = mode === "hide" ? "0" : "1"; } catch (eOpacity) {}
+        try { panel.style.visibility = "visible"; } catch (eVis) {}
+    }
+
+    // HUD rewrites Dot every frame; hide it every frame while shape 0 is up.
+    function paintDot(panel, mode) {
+        if (!valid(panel) || !panel.style) return;
+        try { panel.style.transformOrigin = "50% 50%"; } catch (eOrigin) {}
+        try { panel.style.transform = SCALE_OFF; } catch (eScale) {}
+        try { panel.style.washColor = "none"; } catch (eWash) {}
+        if (mode === "huge" || mode === "hide") {
+            try { panel.style.opacity = "0"; } catch (eOpacity) {}
+            try { panel.style.visibility = "collapse"; } catch (eVis) {}
+            return;
+        }
+        try { panel.style.opacity = "1"; } catch (eOpacity) {}
+        try { panel.style.visibility = "visible"; } catch (eVis) {}
+    }
+
+    function paintReticle(mode, wash) {
+        paintGrosshair(findInHud(GROSSHAIR_ID), mode, wash);
+        for (var i = 0; i < DOT_IDS.length; i++) {
+            paintDot(findInHud(DOT_IDS[i]), mode);
+        }
     }
 
     function findShapeHost() {
@@ -430,23 +454,23 @@
             } catch (eCover) {}
         }
         var on = state.seq > 0 && !covered;
-        if (!on && !state.paintedOn && state.drawnShape < 0) return;
+        if (!on && !state.paintedOn && state.drawnShape < 0) return false;
         var wash = colorFromIndex(state.colorIndex);
         var mode = "clear";
         if (on) mode = state.shape === 0 ? "huge" : "hide";
-        for (var i = 0; i < STYLE_IDS.length; i++) {
-            paintOne(findInHud(STYLE_IDS[i]), mode, wash);
-        }
+        paintReticle(mode, wash);
         if (on && state.shape > 0) syncShape(wash);
         else removeShape();
         state.paintedOn = on;
+        return on && mode === "huge";
     }
 
     function styleLoop() {
+        var needFrame = false;
         try {
-            paintStyle();
+            needFrame = !!paintStyle();
         } catch (eStyle) {}
-        $.Schedule(STYLE_SEC, styleLoop);
+        $.Schedule(needFrame ? 0.0 : STYLE_SEC, styleLoop);
     }
 
     function cacheUrl(path) {
