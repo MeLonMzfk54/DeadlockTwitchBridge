@@ -13,6 +13,7 @@ import {
   resolveConsoleLogPath,
 } from "./game/console-log-tail.js";
 import { createEffectRegistry } from "./effects/registry.js";
+import { bindShopVoteEffects } from "./effects/shop-vote.js";
 import { createHeroResolver } from "./heroes/hero-resolver.js";
 import { EffectManager } from "./queue/effect-manager.js";
 import { TwitchEventSubClient } from "./twitch/eventsub.js";
@@ -84,6 +85,7 @@ async function main(): Promise<void> {
   const shopVote = new ShopVoteController(gameClient, gameEventBus, {
     settings: shopSettings,
   });
+  bindShopVoteEffects(shopVote);
   const persistShopSettings = (): void => {
     try {
       saveShopVoteSettings(shopVote.getSettings());

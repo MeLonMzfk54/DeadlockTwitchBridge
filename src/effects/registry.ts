@@ -10,6 +10,11 @@ import { mouseInvertEffect } from "./mouse-invert.js";
 import { createRosterHighPriorityEffect } from "./roster-high-priority.js";
 import { randomSensitivityEffect } from "./random-sensitivity.js";
 import { screenFlipEffect } from "./screen-flip.js";
+import {
+  shopBuyRandomEffect,
+  shopItemsVoteStartEffect,
+  shopVoteStartEffect,
+} from "./shop-vote.js";
 import { wasdInvertEffect } from "./wasd-invert.js";
 import type { GameEffect } from "./types.js";
 import {
@@ -39,6 +44,9 @@ export function createEffectRegistry(
     mouseInvertEffect,
     wasdInvertEffect,
     screenFlipEffect,
+    shopVoteStartEffect,
+    shopBuyRandomEffect,
+    shopItemsVoteStartEffect,
   ];
 
   const registry = new Map<string, GameEffect>();

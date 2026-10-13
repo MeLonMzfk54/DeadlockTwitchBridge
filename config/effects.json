@@ -157,6 +157,36 @@
       "defaultDurationSec": 1,
       "category": "other",
       "oneShot": true
+    },
+    {
+      "id": "shop_vote_start",
+      "name": "Запустить голосование магазина",
+      "description": "Запускает голосование Random Shop (режим из настроек магазина). Если голосование или покупка уже идут — пропускается.",
+      "retailSafe": true,
+      "cfgBindSafe": true,
+      "defaultDurationSec": 1,
+      "category": "shop",
+      "oneShot": true
+    },
+    {
+      "id": "shop_buy_random",
+      "name": "Купить рандомную шмотку",
+      "description": "Сразу роллит и покупает случайный предмет из включённых категорий/тиров. Открывает вкладку Random. Если голосование или покупка уже идут — пропускается.",
+      "retailSafe": true,
+      "cfgBindSafe": true,
+      "defaultDurationSec": 1,
+      "category": "shop",
+      "oneShot": true
+    },
+    {
+      "id": "shop_items_vote_start",
+      "name": "Запустить голосование за предмет",
+      "description": "Запускает голосование за конкретный предмет (voting_items / Extension). Если голосование или покупка уже идут — пропускается.",
+      "retailSafe": true,
+      "cfgBindSafe": true,
+      "defaultDurationSec": 1,
+      "category": "shop",
+      "oneShot": true
     }
   ]
 }

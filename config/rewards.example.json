@@ -80,6 +80,21 @@
       "name": "Кикнуть стримера из матча",
       "effects": [{ "id": "disconnect" }],
       "cooldownSec": 900
+    },
+    "REWARD_ID_SHOP_VOTE": {
+      "name": "Запустить голосование магазина",
+      "effects": [{ "id": "shop_vote_start" }],
+      "cooldownSec": 60
+    },
+    "REWARD_ID_SHOP_BUY_RANDOM": {
+      "name": "Купить рандомную шмотку",
+      "effects": [{ "id": "shop_buy_random" }],
+      "cooldownSec": 60
+    },
+    "REWARD_ID_SHOP_ITEMS_VOTE": {
+      "name": "Запустить голосование за предмет",
+      "effects": [{ "id": "shop_items_vote_start" }],
+      "cooldownSec": 60
     }
   }
 }
