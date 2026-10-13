@@ -80,7 +80,8 @@
 }
 
 /* Stay laid out while the shop is open so #RSVoteNetHost can decode PNG (votes).
-   Chrome stays collapsed until .gShowingRandom — catalog stays clickable (hittest false). */
+   Chrome stays collapsed until .gShowingRandom. Below the catalog (z-index -1) so
+   Weapon/Vitality/Spirit keep hover/tooltips without collapsing the PNG host. */
 #RandomShopContent
 {
 	ignore-parent-flow: true;
@@ -92,10 +93,18 @@
 	padding: 4px 10px 4px 10px;
 	opacity: 1;
 	hittest: false;
+	hittestchildren: false;
 	overflow: noclip;
 	background-color: none;
 	transition-property: opacity, background-color;
 	transition-duration: 0.21s;
+}
+
+.CitadelHudHeroShop:not(.gShowingRandom) #RandomShopContent
+{
+	z-index: -1;
+	hittest: false;
+	hittestchildren: false;
 }
 
 .CitadelHudHeroShop:not(.gShowingRandom) #RandomShopContent > .RSTitle,
@@ -111,8 +120,10 @@
 
 .gShowingRandom #RandomShopContent
 {
+	z-index: 50;
 	opacity: 1;
 	hittest: true;
+	hittestchildren: true;
 	background-color: #e6dcc8;
 	border-bottom: 1px solid #00000022;
 }
