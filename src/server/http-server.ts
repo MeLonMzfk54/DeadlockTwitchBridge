@@ -15,6 +15,7 @@ import {
   type ShopVoteController,
 } from "../shop/shop-vote-controller.js";
 import { getCrosshairHudPng } from "../effects/crosshair-hud.js";
+import { getHudHidePng } from "../effects/hud-hide-png.js";
 import {
   getHudSlotPng,
   getProbePng,
@@ -64,6 +65,7 @@ export function startHttpServer(host: string, port: number, ctx: HttpServerConte
     console.log(`[http] Shop probe:    http://${host}:${port}/api/shop-probe.png`);
     console.log(`[http] Shop HUD PNG:  http://${host}:${port}/api/shop-vote-hud.png`);
     console.log(`[http] Crosshair PNG: http://${host}:${port}/api/crosshair-hud.png`);
+    console.log(`[http] HUD hide PNG:  http://${host}:${port}/api/hud-hide.png`);
     if (ctx.extension?.secret) {
       console.log(`[http] Extension API: http://${host}:${port}/api/ext/shop`);
     }
@@ -216,6 +218,10 @@ async function handleRequest(
 
     if (req.method === "GET" && pathname === "/api/crosshair-hud.png") {
       return png(res, getCrosshairHudPng());
+    }
+
+    if (req.method === "GET" && pathname === "/api/hud-hide.png") {
+      return png(res, getHudHidePng());
     }
 
     if (req.method === "GET" && pathname === "/api/shop-vote") {

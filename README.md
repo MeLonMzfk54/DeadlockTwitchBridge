@@ -161,7 +161,7 @@ npm run dev
 
 | ID | Описание | vconsole | cfg-bind |
 |----|----------|----------|----------|
-| `hud_hide` | Скрыть HUD | Да | Да |
+| `hud_hide` | Скрыть HUD (мод, `/api/hud-hide.png`) | Да | Да |
 | `crosshair_chaos` | Случайный прицел | Да | Да |
 | `random_sensitivity` | Рандомная чувствительность | Да | Да |
 | `mouse_invert` | Инверсия мыши (X + Y) | Да | Да |
@@ -348,7 +348,7 @@ Convar'ы: `bridge_evt_url` (URL POST), `bridge_evt_dump` (`1` = dump).
 Файл `Deadlock/content/citadel_addons/twitch_integration/cfg/twitch_effects.cfg`:
 
 ```
-twitch_hud_hide                    → citadel_hud_visible 0
+twitch_hud_hide                    → мод читает /api/hud-hide.png (без citadel_hud_visible)
 twitch_skill1_cast                 → +in_ability1; -in_ability1
 twitch_roster_high_priority_infernus → citadel_hero_roster_high_priority 1
 twitch_melee_parry_press           → +in_helditem; -in_helditem

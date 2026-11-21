@@ -3,8 +3,8 @@
  */
 
 export const TEST_CONSOLE_COMMANDS: Record<string, string> = {
-  "hide-hud": "citadel_hud_visible 0",
-  "show-hud": "citadel_hud_visible 1",
+  "hide-hud": "mod PNG /api/hud-hide.png (api/test-effect hud_hide)",
+  "show-hud": "end hud_hide effect (seq=0 on /api/hud-hide.png)",
   "roster-infernus": "citadel_hero_roster_high_priority 1",
   "roster-clear": "citadel_hero_roster_high_priority 0",
   "disconnect": "disconnect",

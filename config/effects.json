@@ -3,7 +3,7 @@
     {
       "id": "hud_hide",
       "name": "Скрыть HUD",
-      "description": "Полностью убирает интерфейс игры",
+      "description": "Скрывает панели интерфейса через мод (PNG /api/hud-hide.png). Полоски над героями и цифры урона остаются",
       "retailSafe": true,
       "cfgBindSafe": true,
       "defaultDurationSec": 45
