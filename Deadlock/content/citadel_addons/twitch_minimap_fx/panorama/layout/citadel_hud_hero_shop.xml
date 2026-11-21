@@ -1,5 +1,5 @@
-﻿<!-- xml reconstructed by Source 2 Viewer 18.0.0.0 - https://valveresourceformat.github.io -->
-<!-- twitch-deadlock-bridge: Random Shop + bridge shop control -->
+﻿<!-- xml reconstructed by Source 2 Viewer 20.1.0.0 - https://valveresourceformat.github.io -->
+<!-- twitch-deadlock-bridge: Random Shop + bridge shop control (stock 6864 + mod hooks) -->
 <root>
 	<styles>
 		<include src="s2r://panorama/styles/citadel_base_styles.vcss_c" />
@@ -224,7 +224,7 @@
 			</Panel>
 		</Panel>
 		<Panel id="EnterPurchasePrompt" hittest="false">
-			<Label class="EnterPurchaseKey" text="#Citadel_Shop_EnterPurchase_Key" />
+			<CitadelBinding class="EnterPurchaseKey" action="ShopPurchaseSearchMatch" />
 			<Label class="EnterPurchaseLabel EnterPurchasePurchaseLabel" text="#Citadel_Shop_EnterPurchase_Purchase" />
 			<Label class="EnterPurchaseLabel EnterPurchaseSellLabel" text="#Citadel_Shop_EnterPurchase_Sell" />
 		</Panel>

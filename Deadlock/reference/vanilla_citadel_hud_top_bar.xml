@@ -1,5 +1,5 @@
-<!-- xml reconstructed by Source 2 Viewer 18.0.0.0 - https://valveresourceformat.github.io -->
-<!-- Clean vanilla reference (no bridge hooks). Prefer .vcss_c for game packaging. -->
+<!-- xml reconstructed by Source 2 Viewer 20.1.0.0 - https://valveresourceformat.github.io -->
+<!-- Clean vanilla reference (no bridge hooks). Prefer .vcss_c for game packaging. Stock Deadlock ClientVersion=6864. -->
 <root>
 	<styles>
 		<include src="s2r://panorama/styles/citadel_base_styles.vcss_c" />
@@ -54,7 +54,7 @@
 			<Panel id="RejuvenatorFriendly">
 				<Panel class="rejuvIcon" />
 			</Panel>
-			<Panel id="RejuvenatorTimer">
+			<Panel id="RejuvenatorTimer" onmouseover="CitadelUIShowTextTooltip( &apos;#citadel_rejuvenator_hud_hint&apos; )" onmouseout="CitadelUIHideTextTooltip()">
 				<Panel class="rejuvTimer">
 					<Panel id="StatusEffectsBorder" />
 					<Panel id="StatusEffectCooldownOverlay" />
@@ -70,7 +70,6 @@
 		</Panel>
 		<Panel class="KillsAndAbilityPointsContainer">
 			<Panel class="ScoreRow TeamKills LeftRightFlow">
-				<Panel class="ScoreTypeIcon" />
 				<Panel class="ScoreNumbers">
 					<Panel class="ScoreNumber">
 						<Label class="FriendlyKills KillsLabel" text="{i:friendly_kills}" />
