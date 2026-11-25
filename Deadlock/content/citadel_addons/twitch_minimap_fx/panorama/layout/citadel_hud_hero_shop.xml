@@ -77,6 +77,9 @@
 							<Panel id="RSVoteStartBtn" class="RSVoteStartBtn" onmouseactivate="$.GetContextPanel().TwitchBridgeVoteButton();">
 								<Label id="RSVoteStartLabel" class="RSVoteStartLabel" text="START VOTE" />
 							</Panel>
+							<Panel id="RSCancelBuyBtn" class="RSCancelBuyBtn" onmouseactivate="$.GetContextPanel().TwitchBridgeCancelPurchase();">
+								<Label id="RSCancelBuyLabel" class="RSCancelBuyLabel" text="CANCEL BUY" />
+							</Panel>
 							<!-- Rolled item card — above tiers so it stays visible while waiting to buy -->
 							<Panel id="RSRolledView">
 								<Label id="RSRolledHeader" class="RSRolledHeader" text="ITEM TO BUY" />

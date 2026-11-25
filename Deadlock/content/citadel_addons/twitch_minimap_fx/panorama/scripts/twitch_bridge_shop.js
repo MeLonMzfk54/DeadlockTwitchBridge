@@ -2,7 +2,7 @@
 (function () {
     "use strict";
 
-    var MOD_VERSION = "1.9.1";
+    var MOD_VERSION = "1.9.2";
     var LOG_PREFIX = "[twitch_bridge] EVENT ";
     var POLL_SEC = 0.2;
     var BUSY_WATCHDOG_SEC = 10.0;
@@ -346,6 +346,56 @@
         setPanelClass(root, "RSVoteStartBtn", "rs-vote-btn-restart", mode.css === "rs-vote-btn-restart");
     }
 
+    /**
+     * Local cancel of rolled/waiting purchase. Does not wait for PNG cmd h=0.
+     * Marks current seq applied so cfg/PNG retry of the same seq cannot re-buy.
+     */
+    function cancelLocalPurchase(reason) {
+        var root = getRoot();
+        var seq = 0;
+        try {
+            if (root && typeof root.RandomShopGetRollSeq === "function") {
+                seq = Number(root.RandomShopGetRollSeq()) || 0;
+            }
+        } catch (eSeq) {}
+        if (!seq) {
+            seq = state.awaitingRollSeq || (state.pendingCmd && state.pendingCmd.seq) || 0;
+        }
+        if (!seq) {
+            try {
+                seq = readConvarInt(CV_SEQ, 0) || 0;
+            } catch (eCv) {}
+        }
+        try {
+            if (root && typeof root.RandomShopCancelRoll === "function") {
+                root.RandomShopCancelRoll(reason || "hud_cancel");
+            }
+        } catch (eCancel) {}
+        try {
+            if (typeof globalThis !== "undefined" && globalThis.__twitch_bridge_pending_shop_cmd) {
+                globalThis.__twitch_bridge_pending_shop_cmd = null;
+            }
+        } catch (ePend) {}
+        state.pendingCmd = null;
+        state._pendingApplyMeta = null;
+        if (seq > 0) {
+            state.lastAppliedSeq = seq;
+        }
+        clearBusy(reason || "hud_cancel");
+        return seq;
+    }
+
+    function TwitchBridgeCancelPurchase() {
+        var now = nowMs();
+        if (state.voteBtnLastClickMs && now - state.voteBtnLastClickMs < VOTE_BTN_DEBOUNCE_MS) {
+            return;
+        }
+        state.voteBtnLastClickMs = now;
+        cancelLocalPurchase("hud_cancel");
+        emit("shop_vote_skip", attachHero({ source: "hud_cancel" }));
+        try { $.Msg("[twitch_bridge] HUD cancel buy"); } catch (eCancel) {}
+    }
+
     function TwitchBridgeVoteButton() {
         var now = nowMs();
         if (state.voteBtnLastClickMs && now - state.voteBtnLastClickMs < VOTE_BTN_DEBOUNCE_MS) {
@@ -354,6 +404,7 @@
         state.voteBtnLastClickMs = now;
         var mode = voteButtonModeForStage(state.lastVoteStage || "idle");
         if (mode.action === "skip") {
+            cancelLocalPurchase("hud_skip");
             emit("shop_vote_skip", attachHero({ source: "hud" }));
             try { $.Msg("[twitch_bridge] HUD vote button: skip"); } catch (eSkip) {}
             return;
@@ -2254,6 +2305,7 @@
         var voteBtnRoot = getRoot();
         if (voteBtnRoot) {
             voteBtnRoot.TwitchBridgeVoteButton = TwitchBridgeVoteButton;
+            voteBtnRoot.TwitchBridgeCancelPurchase = TwitchBridgeCancelPurchase;
         }
     } catch (eBtn) {}
 

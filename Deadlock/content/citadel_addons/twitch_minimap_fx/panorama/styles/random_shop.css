@@ -110,6 +110,7 @@
 .CitadelHudHeroShop:not(.gShowingRandom) #RandomShopContent > .RSTitle,
 .CitadelHudHeroShop:not(.gShowingRandom) #RandomShopContent > .RSSubtitle,
 .CitadelHudHeroShop:not(.gShowingRandom) #RandomShopContent > #RSVoteStartBtn,
+.CitadelHudHeroShop:not(.gShowingRandom) #RandomShopContent > #RSCancelBuyBtn,
 .CitadelHudHeroShop:not(.gShowingRandom) #RandomShopContent > #RSRolledView,
 .CitadelHudHeroShop:not(.gShowingRandom) #RandomShopContent > #RSCategoryFilter,
 .CitadelHudHeroShop:not(.gShowingRandom) #RandomShopContent > #RSTierButtons,
@@ -186,6 +187,37 @@
 }
 
 .RSVoteStartLabel
+{
+	font-size: 13px;
+	font-weight: bold;
+	text-transform: uppercase;
+	letter-spacing: 2px;
+	color: #d8c89a;
+	horizontal-align: center;
+	vertical-align: center;
+	text-align: center;
+	width: 100%;
+}
+
+#RSCancelBuyBtn.RSCancelBuyBtn
+{
+	width: 100%;
+	height: 24px;
+	margin-bottom: 4px;
+	border-radius: 5px;
+	border: 1px solid #884040;
+	background-color: #1c1214;
+	transition-property: brightness, border;
+	transition-duration: 0.1s;
+}
+
+#RSCancelBuyBtn.RSCancelBuyBtn:hover
+{
+	brightness: 1.35;
+	border: 1px solid #b06060;
+}
+
+.RSCancelBuyLabel
 {
 	font-size: 13px;
 	font-weight: bold;
